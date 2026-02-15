@@ -18,8 +18,11 @@ using namespace LedBlinker;
 // Instantiate a malloc allocator for cmdSeq buffer allocation
 Fw::MallocAllocator mallocator;
 
-// The reference topology divides the incoming clock signal (1Hz) into sub-signals: 1Hz, 1/2Hz, and 1/4Hz with 0 offset
-Svc::RateGroupDriver::DividerSet rateGroupDivisorsSet{{{2, 0}, {2, 0}, {4, 0}}};
+// Rate group divisors: Timer ticks at 10Hz (100ms)
+//   rateGroup1: divider 10 -> 1Hz  (slow periodic: system manager, radio manager)
+//   rateGroup2: divider 1  -> 10Hz (fast periodic: sensor, navigation, magnetometer managers)
+//   rateGroup3: divider 4  -> 2.5Hz (infrastructure: health, buffers, data products)
+Svc::RateGroupDriver::DividerSet rateGroupDivisorsSet{{{10, 0}, {1, 0}, {4, 0}}};
 
 // Rate groups may supply a context token to each of the attached children whose purpose is set by the project. The
 // reference topology sets each token to zero as these contexts are unused in this project.
@@ -49,16 +52,40 @@ void configureTopology() {
 
     // Command sequencer needs to allocate memory to hold contents of command sequences
     cmdSeq.allocateBuffer(0, mallocator, 5 * 1024);
+
+    // GPIO drivers for LEDs
     Os::File::Status status =
         gpioDriver.open("/dev/gpiochip4", 13, Drv::LinuxGpioDriver::GpioConfiguration::GPIO_OUTPUT);
     if (status != Os::File::Status::OP_OK) {
-        Fw::Logger::log("[ERROR] Failed to open GPIO pin\n");
-    }   
+        Fw::Logger::log("[ERROR] Failed to open GPIO pin 13\n");
+    }
     Os::File::Status status2 =
         gpioDriver2.open("/dev/gpiochip4", 17, Drv::LinuxGpioDriver::GpioConfiguration::GPIO_OUTPUT);
-    if (status != Os::File::Status::OP_OK) {
-        Fw::Logger::log("[ERROR] Failed to open GPIO pin\n");
+    if (status2 != Os::File::Status::OP_OK) {
+        Fw::Logger::log("[ERROR] Failed to open GPIO pin 17\n");
     }
+
+    // I2C driver for IMU (SensorManager) - Raspberry Pi 4 I2C bus 1
+    bool i2cImuOk = imuI2cDriver.open("/dev/i2c-1");
+    if (!i2cImuOk) {
+        Fw::Logger::log("[ERROR] Failed to open I2C for IMU\n");
+    }
+
+    // I2C driver for Magnetometer - Raspberry Pi 4 I2C bus 1
+    bool i2cMagOk = magI2cDriver.open("/dev/i2c-1");
+    if (!i2cMagOk) {
+        Fw::Logger::log("[ERROR] Failed to open I2C for Magnetometer\n");
+    }
+
+    // SPI driver for Radio - Raspberry Pi 4 SPI bus 0, chip select 0
+    bool spiOk = radioSpiDriver.open(0, 0, Drv::SPI_FREQUENCY_1MHZ);
+    if (!spiOk) {
+        Fw::Logger::log("[ERROR] Failed to open SPI for Radio\n");
+    }
+
+    // Configure manager I2C addresses
+    sensorManager.configure(0x68);         // ICM-20649 default address (AD0 low)
+    magnetometerManager.configure(0x20);   // PNI RM3100 default address
 }
 
 // Public functions for use in main program are namespaced with deployment name LedBlinker

@@ -32,12 +32,12 @@ module LedBlinker {
     queue size Default.QUEUE_SIZE \
     stack size Default.STACK_SIZE \
     priority 95
-  
+
   instance led2: ledmanager.Led base id 0x10008000 \
     queue size Default.QUEUE_SIZE \
     stack size Default.STACK_SIZE \
     priority 95
-  
+
   instance HelloWorld: Components.HelloWorld base id 0x10006000 \
     queue size Default.QUEUE_SIZE \
     stack size Default.STACK_SIZE \
@@ -64,6 +64,39 @@ module LedBlinker {
     priority 117
 
   # ----------------------------------------------------------------------
+  # Manager component instances (1Hz rate group)
+  # ----------------------------------------------------------------------
+
+  instance systemManager: Managers.SystemManager base id 0x10020000 \
+    queue size Default.QUEUE_SIZE \
+    stack size Default.STACK_SIZE \
+    priority 90
+
+  instance radioManager: Managers.RadioManager base id 0x10021000 \
+    queue size Default.QUEUE_SIZE \
+    stack size Default.STACK_SIZE \
+    priority 90
+
+  # ----------------------------------------------------------------------
+  # Manager component instances (10Hz rate group)
+  # ----------------------------------------------------------------------
+
+  instance sensorManager: Managers.SensorManager base id 0x10022000 \
+    queue size Default.QUEUE_SIZE \
+    stack size Default.STACK_SIZE \
+    priority 100
+
+  instance navigationManager: Managers.NavigationManager base id 0x10023000 \
+    queue size Default.QUEUE_SIZE \
+    stack size Default.STACK_SIZE \
+    priority 100
+
+  instance magnetometerManager: Managers.MagnetometerManager base id 0x10024000 \
+    queue size Default.QUEUE_SIZE \
+    stack size Default.STACK_SIZE \
+    priority 100
+
+  # ----------------------------------------------------------------------
   # Queued component instances
   # ----------------------------------------------------------------------
 
@@ -80,5 +113,10 @@ module LedBlinker {
 
   instance timer: Svc.LinuxTimer base id 0x10013000
   instance comDriver: Drv.TcpServer base id 0x10014000
+
+  # Bus driver instances
+  instance imuI2cDriver: Drv.LinuxI2cDriver base id 0x10030000
+  instance magI2cDriver: Drv.LinuxI2cDriver base id 0x10031000
+  instance radioSpiDriver: Drv.LinuxSpiDriver base id 0x10032000
 
 }
