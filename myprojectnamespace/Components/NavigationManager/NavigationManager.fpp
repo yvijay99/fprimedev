@@ -35,6 +35,12 @@ module Managers {
         @ Port receiving calls from the rate group
         async input port run: Svc.Sched
 
+        @ I2C write-read port for GPS
+        output port busWriteRead: Drv.I2cWriteRead
+
+        @ I2C write port for GPS
+        output port busWrite: Drv.I2c
+
         ###############################################################################
         # Standard AC Ports: Required for Channels, Events, Commands, and Parameters  #
         ###############################################################################

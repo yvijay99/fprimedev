@@ -77,6 +77,12 @@ void configureTopology() {
         Fw::Logger::log("[ERROR] Failed to open I2C for Magnetometer\n");
     }
 
+    // I2C driver for GPS (NEO-M9N) - same physical bus as Magnetometer
+    bool i2cGpsOk = gpsI2cDriver.open("/dev/i2c-1");
+    if (!i2cGpsOk) {
+        Fw::Logger::log("[ERROR] Failed to open I2C for GPS\n");
+    }
+
     // SPI driver for Radio - Raspberry Pi 4 SPI bus 0, chip select 0
     bool spiOk = radioSpiDriver.open(0, 0, Drv::SPI_FREQUENCY_1MHZ);
     if (!spiOk) {
@@ -84,8 +90,9 @@ void configureTopology() {
     }
 
     // Configure manager I2C addresses
-    sensorManager.configure(0x68);         // ICM-20649 default address (AD0 low)
-    magnetometerManager.configure(0x20);   // PNI RM3100 default address
+    sensorManager.configure(0x68);
+    magnetometerManager.configure(0x20);
+    navigationManager.configure();
 }
 
 // Public functions for use in main program are namespaced with deployment name LedBlinker

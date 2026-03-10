@@ -117,6 +117,7 @@ module LedBlinker {
   # Bus driver instances
   instance imuI2cDriver: Drv.LinuxI2cDriver base id 0x10030000
   instance magI2cDriver: Drv.LinuxI2cDriver base id 0x10031000
+  instance gpsI2cDriver: Drv.LinuxI2cDriver base id 0x10033000
   instance radioSpiDriver: Drv.LinuxSpiDriver base id 0x10032000
 
 }

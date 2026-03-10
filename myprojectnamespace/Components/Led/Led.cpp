@@ -5,6 +5,7 @@
 // ======================================================================
 
 #include "myprojectnamespace/Components/Led/Led.hpp"
+#include <cstdio>
 
 namespace ledmanager {
 

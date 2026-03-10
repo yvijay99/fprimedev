@@ -15,13 +15,14 @@ class NavigationManager final : public NavigationManagerComponentBase {
   public:
     NavigationManager(const char* const compName);
     ~NavigationManager();
+    void configure();
 
   private:
     bool m_hasFix = false;
     static constexpr U8 MIN_SATELLITES_FOR_FIX = 4;
-
     void GPS_RESET_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
     void run_handler(FwIndexType portNum, U32 context) override;
+    Drv::I2cStatus readGpsData(F64& lat, F64& lon, F32& alt, F32& speed, U8& numSats);
 };
 
 }  // namespace Managers

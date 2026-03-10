@@ -48,6 +48,7 @@ module LedBlinker {
     # Bus driver instances
     instance imuI2cDriver
     instance magI2cDriver
+    instance gpsI2cDriver
     instance radioSpiDriver
 
   # ----------------------------------------------------------------------
@@ -164,6 +165,10 @@ module LedBlinker {
       # Magnetometer I2C bus connections
       magnetometerManager.busWriteRead -> magI2cDriver.writeRead
       magnetometerManager.busWrite -> magI2cDriver.write
+
+      # GPS I2C bus connections (same physical bus as mag, separate driver instance)
+      navigationManager.busWriteRead -> gpsI2cDriver.writeRead
+      navigationManager.busWrite -> gpsI2cDriver.write
 
       # Radio SPI bus connection
       radioManager.spiReadWrite -> radioSpiDriver.SpiReadWrite
