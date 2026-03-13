@@ -228,24 +228,37 @@ pip install -r requirements.txt
 fprime-util generate
 ```
 
-### Build
+## Build & Deploy
+
+### 1. Build (Docker cross-compile for aarch64, skip if you have windows or you have your own toolchain)
+
+Run this from your local machine. The Docker image handles the ARM toolchain — no local cross-compiler needed.
 
 ```bash
-# Build all targets
-fprime-util build
-
-# Build a specific component (faster iteration)
-fprime-util build myprojectnamespace/Components/SensorManager
+docker run --rm -it \
+  -v /path/to/project:/project \
+  nasafprime/fprime-arm \
+  bash -c "cd /project && pip install -r requirements.txt && fprime-util generate aarch64-linux -f && fprime-util build aarch64-linux"
 ```
 
-### Cross-compile for Raspberry Pi
+Outputs land at:
+- Binary: `build-artifacts/aarch64-linux/LedBlinker/bin/LedBlinker`
+- Dictionary: `build-artifacts/aarch64-linux/LedBlinker/dict/LedBlinkerTopologyDictionary.json`
+
+### 2. Deploy to Pi
 
 ```bash
-fprime-util generate --toolchain raspberrypi
-fprime-util build --toolchain raspberrypi
+scp build-artifacts/aarch64-linux/LedBlinker/bin/LedBlinker <pi-user>@<pi-ip>:~/
+scp build-artifacts/aarch64-linux/LedBlinker/dict/LedBlinkerTopologyDictionary.json <pi-user>@<pi-ip>:~/
 ```
 
-> The built binary is at `build-artifacts/raspberrypi/LedBlinker/bin/LedBlinker`.
+### 3. Run on Pi
+
+```bash
+ssh <pi-user>@<pi-ip>
+chmod +x LedBlinker
+./LedBlinker -a 0.0.0.0 -p 50000 &
+```
 
 ---
 
@@ -258,12 +271,16 @@ fprime-util build --toolchain raspberrypi
 ./LedBlinker -a 0.0.0.0 -p 50000
 ```
 
-### Connect GDS
+### 4. Connect GDS
+
+Back on your local machine:
 
 ```bash
-# On your dev machine
-fprime-gds -n --dictionary build-artifacts/raspberrypi/LedBlinker/LedBlinkerTopologyAppDictionary.xml \
-           --ip-address <pi-ip> --port 50000
+cd /path/to/project
+source fprime-venv/bin/activate
+fprime-gds -n --ip-client \
+  --dictionary build-artifacts/aarch64-linux/LedBlinker/dict/LedBlinkerTopologyDictionary.json \
+  --ip-address <pi-ip> --ip-port 50000
 ```
 
 ### Verifying Manager Telemetry
