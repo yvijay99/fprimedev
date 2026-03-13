@@ -6,7 +6,7 @@ F´ (F Prime) is a component-driven framework that enables rapid development and
 **Please Visit the F´ Website:** https://fprime.jpl.nasa.gov.
 
 # fprimedev — `devicemanagertest` branch 
-(README created w/ Claude AI and reviewed by Yukti Vijay)  
+(README created w/ Claude AI and reviewed & edited by Yukti Vijay)  
 
 This branch extends the base F Prime `LedBlinker` deployment with a set of active device-manager components for sensor, navigation, magnetometer, radio, and system health management. It targets **Raspberry Pi (Linux ARM)** and uses `LinuxI2cDriver` / `LinuxSpiDriver` for all hardware bus communication.
 
