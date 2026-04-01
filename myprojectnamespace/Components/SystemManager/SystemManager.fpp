@@ -1,10 +1,22 @@
 module Managers {
 
-    @ System Manager - performs periodic health checks and reports system status
-    active component SystemManager {
+    @ System Manager - monitors component health and manages system state
+    queued component SystemManager {
+
+        @ State machine instance - drives NOMINAL/REBOOT transitions
+        state machine instance systemMgrSm: SystemManagerStateMachine
+
+        @ Rate-group driven periodic tick - drives the state machine
+        async input port run: Svc.Sched
 
         @ Command to trigger an immediate health status report
         async command REPORT_STATUS opcode 0
+
+        @ Inject a component fault (missed packet, data jump) - transitions to REBOOT
+        async command INJECT_COMPONENT_FAULT opcode 1
+
+        @ Clear the fault and return to NOMINAL after reboot
+        async command CLEAR_FAULT opcode 2
 
         @ Periodic health check completed successfully
         event HealthCheckComplete \
@@ -17,6 +29,20 @@ module Managers {
         ) severity warning high \
           format "Health warning: {}"
 
+        @ Component fault triggered reboot mode
+        event ComponentFaultDetected(
+            faultCount: U32 @< Total component faults since startup
+        ) severity warning high \
+          format "Component fault detected - entering REBOOT mode (total faults: {})"
+
+        @ System recovered from reboot back to nominal
+        event RebootComplete \
+            severity activity high \
+            format "Reboot complete: returned to NOMINAL"
+
+        @ Current system state: 0 = NOMINAL, 1 = REBOOT
+        telemetry SystemState: U32
+
         @ CPU usage percentage
         telemetry CpuUsage: F32
 
@@ -26,8 +52,8 @@ module Managers {
         @ System uptime in seconds
         telemetry SystemUptime: U64
 
-        @ Port receiving calls from the rate group
-        async input port run: Svc.Sched
+        @ Total component faults detected since startup
+        telemetry TotalComponentFaults: U32
 
         ###############################################################################
         # Standard AC Ports: Required for Channels, Events, Commands, and Parameters  #
@@ -58,6 +84,7 @@ module Managers {
 
         @ Port to set the value of a parameter
         param set port prmSetOut
+
     }
 
 }
