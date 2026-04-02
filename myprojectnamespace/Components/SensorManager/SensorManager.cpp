@@ -2,13 +2,24 @@
 // \title  SensorManager.cpp
 // \author yuktivijay
 // \brief  cpp file for SensorManager component implementation class
+//
+// Simulation mode:
+//   Send ENABLE_SIM  → generates fake IMU + temp data each tick (no I2C needed)
+//   Send DISABLE_SIM → returns to reading real ICM-20649 over I2C
+//
+// Useful for testing the SystemManager state machine and verifying GDS
+// telemetry display without needing the Pi or real sensors connected.
 // ======================================================================
 
+#include <cmath>
 #include "myprojectnamespace/Components/SensorManager/SensorManager.hpp"
 
 namespace Managers {
 
-SensorManager::SensorManager(const char* const compName) : SensorManagerComponentBase(compName) {}
+SensorManager::SensorManager(const char* const compName)
+    : SensorManagerComponentBase(compName),
+      m_simEnabled(false),
+      m_simTick(0) {}
 
 SensorManager::~SensorManager() {}
 
@@ -48,17 +59,62 @@ Drv::I2cStatus SensorManager::readImuData(F32& ax, F32& ay, F32& az,
     return status;
 }
 
+void SensorManager::simulateImuData(F32& ax, F32& ay, F32& az,
+                                     F32& gx, F32& gy, F32& gz,
+                                     F32& temp) {
+    // Slowly oscillating values so you can watch them move in GDS.
+    // Phase offset per axis keeps them visually distinct.
+    float t = static_cast<float>(m_simTick) * 0.1f;
+
+    ax = 0.5f * sinf(t);
+    ay = 0.5f * sinf(t + 1.0f);
+    az = 1.0f + 0.1f * sinf(t + 2.0f);  // ~1g on Z to simulate sitting flat
+
+    gx = 2.0f * sinf(t * 0.5f);
+    gy = 2.0f * sinf(t * 0.5f + 1.0f);
+    gz = 1.0f * sinf(t * 0.5f + 2.0f);
+
+    temp = 25.0f + 5.0f * sinf(t * 0.05f);  // slow drift around 25°C (simulated onboard temp)
+}
+
 void SensorManager::CALIBRATE_IMU_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     this->log_ACTIVITY_HI_ImuCalibrationStarted();
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
-void SensorManager::run_handler(FwIndexType portNum, U32 context) {
-    if (this->isConnected_busWriteRead_OutputPort(0)) {
-        F32 ax = 0, ay = 0, az = 0;
-        F32 gx = 0, gy = 0, gz = 0;
-        F32 temp = 0;
+void SensorManager::ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    m_simEnabled = true;
+    m_simTick = 0;
+    this->log_ACTIVITY_HI_SimModeEnabled();
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
 
+void SensorManager::DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    m_simEnabled = false;
+    this->log_ACTIVITY_HI_SimModeDisabled();
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
+
+void SensorManager::run_handler(FwIndexType portNum, U32 context) {
+    F32 ax = 0, ay = 0, az = 0;
+    F32 gx = 0, gy = 0, gz = 0;
+    F32 temp = 0;
+
+    if (m_simEnabled) {
+        // Simulation mode: generate fake data without touching I2C
+        this->simulateImuData(ax, ay, az, gx, gy, gz, temp);
+        m_simTick++;
+
+        this->tlmWrite_AccelX(ax);
+        this->tlmWrite_AccelY(ay);
+        this->tlmWrite_AccelZ(az);
+        this->tlmWrite_GyroX(gx);
+        this->tlmWrite_GyroY(gy);
+        this->tlmWrite_GyroZ(gz);
+        this->tlmWrite_ImuTemp(temp);
+        this->log_ACTIVITY_LO_ImuReadOk();
+    } else if (this->isConnected_busWriteRead_OutputPort(0)) {
+        // Normal mode: read from real ICM-20649 over I2C
         Drv::I2cStatus status = this->readImuData(ax, ay, az, gx, gy, gz, temp);
 
         if (status == Drv::I2cStatus::I2C_OK) {

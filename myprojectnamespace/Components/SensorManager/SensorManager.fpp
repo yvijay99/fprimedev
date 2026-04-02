@@ -6,6 +6,12 @@ module Managers {
         @ Command to trigger IMU calibration
         async command CALIBRATE_IMU opcode 0
 
+        @ Enable simulation mode - generates fake IMU + temp data without real hardware
+        async command ENABLE_SIM opcode 1
+
+        @ Disable simulation mode - return to reading real I2C hardware
+        async command DISABLE_SIM opcode 2
+
         @ IMU data read successfully
         event ImuReadOk \
             severity activity low \
@@ -21,6 +27,16 @@ module Managers {
         event ImuCalibrationStarted \
             severity activity high \
             format "IMU calibration started"
+
+        @ Simulation mode enabled - IMU and temp data are simulated
+        event SimModeEnabled \
+            severity activity high \
+            format "SensorManager: simulation mode enabled"
+
+        @ Simulation mode disabled - returning to real I2C hardware
+        event SimModeDisabled \
+            severity activity high \
+            format "SensorManager: simulation mode disabled"
 
         @ Acceleration vector (m/s^2)
         telemetry AccelX: F32

@@ -30,12 +30,23 @@ class SensorManager final : public SensorManagerComponentBase {
     static constexpr U8 DATA_SIZE = 14;
     static constexpr U8 ICM20649_WHO_AM_I = 0xE1;
 
+    bool m_simEnabled = false;  //!< When true, generates fake data instead of reading I2C
+    U32  m_simTick = 0;         //!< Tick counter used to vary simulated sensor values
+
     void CALIBRATE_IMU_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
+    void ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
+    void DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
     void run_handler(FwIndexType portNum, U32 context) override;
 
     Drv::I2cStatus readImuData(F32& ax, F32& ay, F32& az,
                                 F32& gx, F32& gy, F32& gz,
                                 F32& temp);
+
+    //! Fills in fake IMU + temp values for testing state machine without hardware.
+    //! Values oscillate slowly so you can see live changes in GDS.
+    void simulateImuData(F32& ax, F32& ay, F32& az,
+                         F32& gx, F32& gy, F32& gz,
+                         F32& temp);
 };
 
 }  // namespace Managers
