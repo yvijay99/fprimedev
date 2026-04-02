@@ -78,7 +78,10 @@ module LedBlinker {
       rateGroup2.RateGroupMemberOut[4] -> led2.run
       # led's gpioSet output is connected to gpioDriver's gpioWrite input
       led.gpioSet -> gpioDriver.gpioWrite
-      led2.gpioSet -> gpioDriver2.gpioWrite
+      # gpioDriver2 is driven by SystemManager state machine:
+      #   HIGH (LED on)  = NOMINAL
+      #   LOW  (LED off) = REBOOT / fault
+      systemManager.statusLedSet -> gpioDriver2.gpioWrite
     }
 
     connections ComCcsds_CdhCore {

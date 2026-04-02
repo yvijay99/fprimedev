@@ -9,6 +9,9 @@ module Managers {
         @ Rate-group driven periodic tick - drives the state machine
         async input port run: Svc.Sched
 
+        @ GPIO output to drive the status LED (HIGH = NOMINAL, LOW = REBOOT)
+        output port statusLedSet: Drv.GpioWrite
+
         @ Command to trigger an immediate health status report
         async command REPORT_STATUS opcode 0
 

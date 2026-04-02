@@ -42,8 +42,6 @@ class SensorManager final : public SensorManagerComponentBase {
                                 F32& gx, F32& gy, F32& gz,
                                 F32& temp);
 
-    //! Fills in fake IMU + temp values for testing state machine without hardware.
-    //! Values oscillate slowly so you can see live changes in GDS.
     void simulateImuData(F32& ax, F32& ay, F32& az,
                          F32& gx, F32& gy, F32& gz,
                          F32& temp);
