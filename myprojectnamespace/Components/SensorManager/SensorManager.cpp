@@ -103,6 +103,9 @@ void SensorManager::run_handler(FwIndexType portNum, U32 context) {
         this->tlmWrite_GyroZ(gz);
         this->tlmWrite_ImuTemp(temp);
         this->log_ACTIVITY_LO_ImuReadOk();
+        if (this->isConnected_healthOut_OutputPort(0)) {
+            this->healthOut_out(0, true);
+        }
     } else if (this->isConnected_busWriteRead_OutputPort(0)) {
         Drv::I2cStatus status = this->readImuData(ax, ay, az, gx, gy, gz, temp);
 
@@ -115,8 +118,14 @@ void SensorManager::run_handler(FwIndexType portNum, U32 context) {
             this->tlmWrite_GyroZ(gz);
             this->tlmWrite_ImuTemp(temp);
             this->log_ACTIVITY_LO_ImuReadOk();
+            if (this->isConnected_healthOut_OutputPort(0)) {
+                this->healthOut_out(0, true);
+            }
         } else {
             this->log_WARNING_HI_ImuReadError(static_cast<I32>(status.e));
+            if (this->isConnected_healthOut_OutputPort(0)) {
+                this->healthOut_out(0, false);
+            }
         }
     }
 }

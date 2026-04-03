@@ -180,6 +180,10 @@ module LedBlinker {
       tempManager.busWriteRead -> tempI2cDriver.writeRead
       tempManager.busWrite -> tempI2cDriver.write
 
+      # Component health reporting to SystemManager
+      sensorManager.healthOut -> systemManager.sensorHealth
+      tempManager.healthOut -> systemManager.tempHealth
+
       # Radio SPI bus connection
       radioManager.spiReadWrite -> radioSpiDriver.SpiReadWrite
     }

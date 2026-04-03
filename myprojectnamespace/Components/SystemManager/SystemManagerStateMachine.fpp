@@ -5,15 +5,26 @@ module Managers {
         initial enter NOMINAL
 
         signal tick           # rate group fires this every second
-        signal componentFault # triggered when a component misbehaves (missed packet, data jump)
-        signal rebootComplete # triggered from GDS once fault is cleared
+        signal sensorFault    # SensorManager reported an I2C failure
+        signal tempFault      # TempManager reported an I2C failure
+        signal faultCleared   # all reporting components are healthy again
+        signal escalate       # too long in DEGRADED - promote to REBOOT
+        signal rebootComplete # GDS cleared the fault, return to NOMINAL
 
-        action runHealthCheck # runs each tick in NOMINAL - emits health telemetry, mode=0
-        action performReboot  # runs each tick in REBOOT  - emits reboot telemetry, mode=1
+        action runHealthCheck  # NOMINAL tick - emit telemetry, LED solid on
+        action monitorDegraded # DEGRADED tick - emit telemetry, blink LED, check escalation
+        action performReboot   # REBOOT tick - emit telemetry, LED off
 
         state NOMINAL {
             on tick do { runHealthCheck }
-            on componentFault enter REBOOT
+            on sensorFault enter DEGRADED
+            on tempFault enter DEGRADED
+        }
+
+        state DEGRADED {
+            on tick do { monitorDegraded }
+            on faultCleared enter NOMINAL
+            on escalate enter REBOOT
         }
 
         state REBOOT {

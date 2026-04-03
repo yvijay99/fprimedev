@@ -8,3 +8,12 @@ module Types {
     }
 
 }
+
+module Managers {
+
+    @ Health status reported by a component to SystemManager each tick.
+    @ healthy = true means the component is operating normally.
+    @ healthy = false means a fault was detected (e.g. I2C read failure).
+    port ComponentHealth(healthy: bool)
+
+}

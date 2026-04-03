@@ -20,6 +20,9 @@ module Components {
         @ I2C write port for TMP
         output port busWrite: Drv.I2c
 
+        @ Health status reported to SystemManager each tick
+        output port healthOut: Managers.ComponentHealth
+
         @ Event for logging I2C read errors
         event TempReadError(status: Drv.I2cStatus) severity warning high format "I2C read error with status {}"
 

@@ -54,6 +54,9 @@ module Managers {
         @ Port receiving calls from the rate group
         async input port run: Svc.Sched
 
+        @ Health status reported to SystemManager each tick
+        output port healthOut: Managers.ComponentHealth
+
         @ I2C write-then-read port for IMU communication
         output port busWriteRead: Drv.I2cWriteRead
 
