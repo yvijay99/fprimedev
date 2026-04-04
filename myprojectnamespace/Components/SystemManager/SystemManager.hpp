@@ -38,6 +38,8 @@ class SystemManager final : public SystemManagerComponentBase {
     void run_handler(FwIndexType portNum, U32 context) override;
     void sensorHealth_handler(FwIndexType portNum, bool healthy) override;
     void tempHealth_handler(FwIndexType portNum, bool healthy) override;
+    void gpsHealth_handler(FwIndexType portNum, bool healthy) override;
+    void magHealth_handler(FwIndexType portNum, bool healthy) override;
 
     // ---- Command handlers ----
     void REPORT_STATUS_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
@@ -51,6 +53,8 @@ class SystemManager final : public SystemManagerComponentBase {
     U32 m_degradedTicks = 0;       //!< Ticks spent in DEGRADED - escalates at threshold
     bool m_sensorFaultActive = false;
     bool m_tempFaultActive = false;
+    bool m_gpsFaultActive = false;
+    bool m_magFaultActive = false;
     bool m_ledToggle = false;      //!< Used to blink LED in DEGRADED state
 
     static constexpr U32 ESCALATION_THRESHOLD = 10;  //!< Ticks in DEGRADED before auto-escalate

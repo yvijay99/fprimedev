@@ -4,6 +4,7 @@
 // \brief  cpp file for MagnetometerManager component implementation class
 // ======================================================================
 
+#include <cmath>
 #include "myprojectnamespace/Components/MagnetometerManager/MagnetometerManager.hpp"
 
 namespace Managers {
@@ -64,15 +65,45 @@ Drv::I2cStatus MagnetometerManager::readTemperature(F32& tempC) {
     return status;
 }
 
+void MagnetometerManager::simulateMagData(F32& mx, F32& my, F32& mz) {
+    float t = static_cast<float>(m_simTick) * 0.1f;
+    mx = 20.0f + 5.0f * sinf(t);
+    my = 20.0f + 5.0f * sinf(t + 1.0f);
+    mz = -40.0f + 5.0f * sinf(t + 2.0f);  // typical Z component pointing down
+}
+
 void MagnetometerManager::CALIBRATE_MAG_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     this->log_ACTIVITY_HI_MagCalibrationStarted();
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
-void MagnetometerManager::run_handler(FwIndexType portNum, U32 context) {
-    if (this->isConnected_busWriteRead_OutputPort(0)) {
-        F32 mx = 0, my = 0, mz = 0;
+void MagnetometerManager::ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    m_simEnabled = true;
+    m_simTick = 0;
+    this->log_ACTIVITY_HI_SimModeEnabled();
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
 
+void MagnetometerManager::DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    m_simEnabled = false;
+    this->log_ACTIVITY_HI_SimModeDisabled();
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
+
+void MagnetometerManager::run_handler(FwIndexType portNum, U32 context) {
+    F32 mx = 0, my = 0, mz = 0;
+
+    if (m_simEnabled) {
+        this->simulateMagData(mx, my, mz);
+        m_simTick++;
+        this->tlmWrite_MagX(mx);
+        this->tlmWrite_MagY(my);
+        this->tlmWrite_MagZ(mz);
+        this->log_ACTIVITY_LO_MagReadOk();
+        if (this->isConnected_healthOut_OutputPort(0)) {
+            this->healthOut_out(0, true);
+        }
+    } else if (this->isConnected_busWriteRead_OutputPort(0)) {
         Drv::I2cStatus status = this->readMagData(mx, my, mz);
 
         if (status == Drv::I2cStatus::I2C_OK) {
@@ -86,8 +117,14 @@ void MagnetometerManager::run_handler(FwIndexType portNum, U32 context) {
             }
 
             this->log_ACTIVITY_LO_MagReadOk();
+            if (this->isConnected_healthOut_OutputPort(0)) {
+                this->healthOut_out(0, true);
+            }
         } else {
             this->log_WARNING_HI_MagReadError(static_cast<I32>(status.e));
+            if (this->isConnected_healthOut_OutputPort(0)) {
+                this->healthOut_out(0, false);
+            }
         }
     }
 }

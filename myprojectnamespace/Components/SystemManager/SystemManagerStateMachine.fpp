@@ -7,6 +7,8 @@ module Managers {
         signal tick           # rate group fires this every second
         signal sensorFault    # SensorManager reported an I2C failure
         signal tempFault      # TempManager reported an I2C failure
+        signal gpsFault       # NavigationManager reported an I2C failure
+        signal magFault       # MagnetometerManager reported an I2C failure
         signal faultCleared   # all reporting components are healthy again
         signal escalate       # too long in DEGRADED - promote to REBOOT
         signal rebootComplete # GDS cleared the fault, return to NOMINAL
@@ -19,6 +21,8 @@ module Managers {
             on tick do { runHealthCheck }
             on sensorFault enter DEGRADED
             on tempFault enter DEGRADED
+            on gpsFault enter DEGRADED
+            on magFault enter DEGRADED
         }
 
         state DEGRADED {

@@ -15,6 +15,12 @@ module Managers {
         @ Health report from TempManager (TMP102)
         async input port tempHealth: Managers.ComponentHealth
 
+        @ Health report from NavigationManager (GPS)
+        async input port gpsHealth: Managers.ComponentHealth
+
+        @ Health report from MagnetometerManager (RM3100)
+        async input port magHealth: Managers.ComponentHealth
+
         @ GPIO output to drive the status LED
         output port statusLedSet: Drv.GpioWrite
 

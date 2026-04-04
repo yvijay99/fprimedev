@@ -33,11 +33,17 @@ class MagnetometerManager final : public MagnetometerManagerComponentBase {
     static constexpr U8 MAG_DATA_SIZE = 9;
     static constexpr F32 RM3100_SENSITIVITY = 75.0f;
 
+    bool m_simEnabled = false;
+    U32  m_simTick = 0;
+
     void CALIBRATE_MAG_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
+    void ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
+    void DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
     void run_handler(FwIndexType portNum, U32 context) override;
 
     Drv::I2cStatus readMagData(F32& mx, F32& my, F32& mz);
     Drv::I2cStatus readTemperature(F32& tempC);
+    void simulateMagData(F32& mx, F32& my, F32& mz);
 };
 
 }  // namespace Managers

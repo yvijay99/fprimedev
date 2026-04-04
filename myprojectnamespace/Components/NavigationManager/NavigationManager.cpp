@@ -184,21 +184,44 @@ void NavigationManager::GPS_RESET_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
-void NavigationManager::run_handler(FwIndexType portNum, U32 context) {
-    // F64 latitude = 42.2808;
-    // F64 longitude = -83.7430;
-    // F32 altitude = 270.0f;
-    // F32 groundSpeed = 0.0f;
-    // U8 numSatellites = 8;
+void NavigationManager::ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    m_simEnabled = true;
+    this->log_ACTIVITY_HI_SimModeEnabled();
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
 
+void NavigationManager::DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    m_simEnabled = false;
+    this->log_ACTIVITY_HI_SimModeDisabled();
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
+
+void NavigationManager::run_handler(FwIndexType portNum, U32 context) {
     F64 latitude = 0.0, longitude = 0.0;
     F32 altitude = 0.0f, groundSpeed = 0.0f;
     U8 numSatellites = 0;
 
-    Drv::I2cStatus status = this->readGpsData(latitude, longitude, altitude, groundSpeed, numSatellites);
-    if (status != Drv::I2cStatus::I2C_OK) {
-        this->log_WARNING_HI_GpsFixLost();
-        return;
+    if (m_simEnabled) {
+        latitude     = 42.2808;
+        longitude    = -83.7430;
+        altitude     = 270.0f;
+        groundSpeed  = 0.0f;
+        numSatellites = 8;
+        if (this->isConnected_healthOut_OutputPort(0)) {
+            this->healthOut_out(0, true);
+        }
+    } else {
+        Drv::I2cStatus status = this->readGpsData(latitude, longitude, altitude, groundSpeed, numSatellites);
+        if (status != Drv::I2cStatus::I2C_OK) {
+            this->log_WARNING_HI_GpsFixLost();
+            if (this->isConnected_healthOut_OutputPort(0)) {
+                this->healthOut_out(0, false);
+            }
+            return;
+        }
+        if (this->isConnected_healthOut_OutputPort(0)) {
+            this->healthOut_out(0, true);
+        }
     }
 
     bool currentFix = (numSatellites >= MIN_SATELLITES_FOR_FIX);

@@ -183,6 +183,8 @@ module LedBlinker {
       # Component health reporting to SystemManager
       sensorManager.healthOut -> systemManager.sensorHealth
       tempManager.healthOut -> systemManager.tempHealth
+      navigationManager.healthOut -> systemManager.gpsHealth
+      magnetometerManager.healthOut -> systemManager.magHealth
 
       # Radio SPI bus connection
       radioManager.spiReadWrite -> radioSpiDriver.SpiReadWrite

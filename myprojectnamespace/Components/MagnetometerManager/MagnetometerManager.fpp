@@ -6,6 +6,12 @@ module Managers {
         @ Command to trigger magnetometer calibration
         async command CALIBRATE_MAG opcode 0
 
+        @ Enable simulation mode - generates fake mag field data without I2C
+        async command ENABLE_SIM opcode 1
+
+        @ Disable simulation mode - return to real I2C reads
+        async command DISABLE_SIM opcode 2
+
         @ Magnetometer data read successfully
         event MagReadOk \
             severity activity low \
@@ -22,6 +28,16 @@ module Managers {
             severity activity high \
             format "Magnetometer calibration started"
 
+        @ Simulation mode enabled
+        event SimModeEnabled \
+            severity activity high \
+            format "MagnetometerManager: simulation mode enabled"
+
+        @ Simulation mode disabled
+        event SimModeDisabled \
+            severity activity high \
+            format "MagnetometerManager: simulation mode disabled"
+
         @ Magnetic field X component (microtesla)
         telemetry MagX: F32
 
@@ -36,6 +52,9 @@ module Managers {
 
         @ Port receiving calls from the rate group
         async input port run: Svc.Sched
+
+        @ Health status reported to SystemManager each tick
+        output port healthOut: Managers.ComponentHealth
 
         @ I2C write-then-read port for magnetometer communication
         output port busWriteRead: Drv.I2cWriteRead
