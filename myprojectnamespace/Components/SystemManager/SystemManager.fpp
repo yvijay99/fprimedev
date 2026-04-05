@@ -36,6 +36,18 @@ module Managers {
         @ Manually escalate from DEGRADED to REBOOT
         async command ESCALATE opcode 3
 
+        @ Clear IMU fault flag - leaves DEGRADED if all other faults also clear
+        async command CLEAR_SENSOR_FAULT opcode 4
+
+        @ Clear temp sensor fault flag - leaves DEGRADED if all other faults also clear
+        async command CLEAR_TEMP_FAULT opcode 5
+
+        @ Clear GPS fault flag - leaves DEGRADED if all other faults also clear
+        async command CLEAR_GPS_FAULT opcode 6
+
+        @ Clear magnetometer fault flag - leaves DEGRADED if all other faults also clear
+        async command CLEAR_MAG_FAULT opcode 7
+
         event HealthCheckComplete \
             severity activity low \
             format "Health check completed"

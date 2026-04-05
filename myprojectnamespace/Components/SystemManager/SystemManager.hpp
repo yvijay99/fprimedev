@@ -46,11 +46,18 @@ class SystemManager final : public SystemManagerComponentBase {
     void INJECT_COMPONENT_FAULT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
     void CLEAR_FAULT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
     void ESCALATE_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
+    void CLEAR_SENSOR_FAULT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
+    void CLEAR_TEMP_FAULT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
+    void CLEAR_GPS_FAULT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
+    void CLEAR_MAG_FAULT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
 
     // ---- Member variables ----
     U64 m_uptimeSeconds = 0;
     U32 m_totalComponentFaults = 0;
     U32 m_degradedTicks = 0;       //!< Ticks spent in DEGRADED - escalates at threshold
+    //! Sends faultCleared signal if no component faults remain active
+    void checkAllClear();
+
     bool m_sensorFaultActive = false;
     bool m_tempFaultActive = false;
     bool m_gpsFaultActive = false;

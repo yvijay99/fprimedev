@@ -83,6 +83,13 @@ void SystemManager::Managers_SystemManagerStateMachine_action_performReboot(
 
 // ---- Health port handlers ----
 
+void SystemManager::checkAllClear() {
+    if (!m_sensorFaultActive && !m_tempFaultActive &&
+        !m_gpsFaultActive && !m_magFaultActive) {
+        this->systemMgrSm_sendSignal_faultCleared();
+    }
+}
+
 void SystemManager::sensorHealth_handler(FwIndexType portNum, bool healthy) {
     if (!healthy && !m_sensorFaultActive) {
         m_sensorFaultActive = true;
@@ -91,9 +98,7 @@ void SystemManager::sensorHealth_handler(FwIndexType portNum, bool healthy) {
         this->systemMgrSm_sendSignal_sensorFault();
     } else if (healthy && m_sensorFaultActive) {
         m_sensorFaultActive = false;
-        if (!m_tempFaultActive && !m_gpsFaultActive && !m_magFaultActive) {
-            this->systemMgrSm_sendSignal_faultCleared();
-        }
+        checkAllClear();
     }
 }
 
@@ -105,9 +110,7 @@ void SystemManager::tempHealth_handler(FwIndexType portNum, bool healthy) {
         this->systemMgrSm_sendSignal_tempFault();
     } else if (healthy && m_tempFaultActive) {
         m_tempFaultActive = false;
-        if (!m_sensorFaultActive && !m_gpsFaultActive && !m_magFaultActive) {
-            this->systemMgrSm_sendSignal_faultCleared();
-        }
+        checkAllClear();
     }
 }
 
@@ -119,9 +122,7 @@ void SystemManager::gpsHealth_handler(FwIndexType portNum, bool healthy) {
         this->systemMgrSm_sendSignal_gpsFault();
     } else if (healthy && m_gpsFaultActive) {
         m_gpsFaultActive = false;
-        if (!m_sensorFaultActive && !m_tempFaultActive && !m_magFaultActive) {
-            this->systemMgrSm_sendSignal_faultCleared();
-        }
+        checkAllClear();
     }
 }
 
@@ -133,9 +134,7 @@ void SystemManager::magHealth_handler(FwIndexType portNum, bool healthy) {
         this->systemMgrSm_sendSignal_magFault();
     } else if (healthy && m_magFaultActive) {
         m_magFaultActive = false;
-        if (!m_sensorFaultActive && !m_tempFaultActive && !m_gpsFaultActive) {
-            this->systemMgrSm_sendSignal_faultCleared();
-        }
+        checkAllClear();
     }
 }
 
@@ -172,6 +171,30 @@ void SystemManager::CLEAR_FAULT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     m_degradedTicks = 0;
     this->log_ACTIVITY_HI_RebootComplete();
     this->systemMgrSm_sendSignal_rebootComplete();
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
+
+void SystemManager::CLEAR_SENSOR_FAULT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    m_sensorFaultActive = false;
+    checkAllClear();
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
+
+void SystemManager::CLEAR_TEMP_FAULT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    m_tempFaultActive = false;
+    checkAllClear();
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
+
+void SystemManager::CLEAR_GPS_FAULT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    m_gpsFaultActive = false;
+    checkAllClear();
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
+
+void SystemManager::CLEAR_MAG_FAULT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    m_magFaultActive = false;
+    checkAllClear();
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
