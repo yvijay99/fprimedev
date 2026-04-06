@@ -1,19 +1,19 @@
 // ======================================================================
-// \title  LedBlinkerTopology.cpp
+// \title  fprimecubesatTopology.cpp
 // \brief cpp file containing the topology instantiation code
 //
 // ======================================================================
 // Provides access to autocoded functions
-#include <LedBlinker/Top/LedBlinkerTopologyAc.hpp>
+#include <fprimecubesat/Top/fprimecubesatTopologyAc.hpp>
 // Note: Uncomment when using Svc:TlmPacketizer
-//#include <LedBlinker/Top/LedBlinkerPacketsAc.hpp>
+//#include <fprimecubesat/Top/fprimecubesatPacketsAc.hpp>
 
 // Necessary project-specified types
 #include <Fw/Types/MallocAllocator.hpp>
 #include <Fw/Logger/Logger.hpp>
 
 // Allows easy reference to objects in FPP/autocoder required namespaces
-using namespace LedBlinker;
+using namespace fprimecubesat;
 
 // Instantiate a malloc allocator for cmdSeq buffer allocation
 Fw::MallocAllocator mallocator;
@@ -95,8 +95,8 @@ void configureTopology() {
     navigationManager.configure();
 }
 
-// Public functions for use in main program are namespaced with deployment name LedBlinker
-namespace LedBlinker {
+// Public functions for use in main program are namespaced with deployment name fprimecubesat
+namespace fprimecubesat {
 void setupTopology(const TopologyState& state) {
     // Autocoded initialization. Function provided by autocoder.
     initComponents(state);
@@ -153,4 +153,4 @@ void teardownTopology(const TopologyState& state) {
 
     tearDownComponents(state);
 }
-};  // namespace LedBlinker
+};  // namespace fprimecubesat

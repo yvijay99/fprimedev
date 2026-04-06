@@ -17,4 +17,4 @@ fprime_setup_included_code()
 
 # This includes project-wide objects
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/myprojectnamespace")
-add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/LedBlinker/")
+add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/fprimecubesat/")

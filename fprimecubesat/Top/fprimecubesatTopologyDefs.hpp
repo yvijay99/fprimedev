@@ -1,10 +1,10 @@
 // ======================================================================
-// \title  LedBlinkerTopologyDefs.hpp
+// \title  fprimecubesatTopologyDefs.hpp
 // \brief required header file containing the required definitions for the topology autocoder
 //
 // ======================================================================
-#ifndef LEDBLINKER_LEDBLINKERTOPOLOGYDEFS_HPP
-#define LEDBLINKER_LEDBLINKERTOPOLOGYDEFS_HPP
+#ifndef FPRIMECUBESAT_FPRIMECUBESATTOPOLOGYDEFS_HPP
+#define FPRIMECUBESAT_FPRIMECUBESATTOPOLOGYDEFS_HPP
 
 // Subtopology PingEntries includes
 #include "Svc/Subtopologies/CdhCore/PingEntries.hpp"
@@ -23,7 +23,7 @@
 #include "Svc/Subtopologies/ComCcsds/Ports_ComBufferQueueEnumAc.hpp"
 
 // Include autocoded FPP constants
-#include "LedBlinker/Top/FppConstantsAc.hpp"
+#include "fprimecubesat/Top/FppConstantsAc.hpp"
 
 /**
  * \brief required ping constants
@@ -45,19 +45,19 @@
  * ```
  */
 namespace PingEntries {
-    namespace LedBlinker_rateGroup1 {enum { WARN = 3, FATAL = 5 };}
-    namespace LedBlinker_rateGroup2 {enum { WARN = 3, FATAL = 5 };}
-    namespace LedBlinker_rateGroup3 {enum { WARN = 3, FATAL = 5 };}
-    namespace LedBlinker_cmdSeq {enum { WARN = 3, FATAL = 5 };}
+    namespace fprimecubesat_rateGroup1 {enum { WARN = 3, FATAL = 5 };}
+    namespace fprimecubesat_rateGroup2 {enum { WARN = 3, FATAL = 5 };}
+    namespace fprimecubesat_rateGroup3 {enum { WARN = 3, FATAL = 5 };}
+    namespace fprimecubesat_cmdSeq {enum { WARN = 3, FATAL = 5 };}
 }  // namespace PingEntries
 
 // Definitions are placed within a namespace named after the deployment
-namespace LedBlinker {
+namespace fprimecubesat {
 
 /**
  * \brief required type definition to carry state
  *
- * The topology autocoder requires an object that carries state with the name `LedBlinker::TopologyState`. Only the type
+ * The topology autocoder requires an object that carries state with the name `fprimecubesat::TopologyState`. Only the type
  * definition is required by the autocoder and the contents of this object are otherwise opaque to the autocoder. The
  * contents are entirely up to the definition of the project. This deployment uses subtopologies.
  */
@@ -71,5 +71,5 @@ struct TopologyState {
 };
 
 namespace PingEntries = ::PingEntries;
-}  // namespace LedBlinker
+}  // namespace fprimecubesat
 #endif

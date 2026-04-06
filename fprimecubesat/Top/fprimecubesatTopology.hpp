@@ -1,17 +1,17 @@
 // ======================================================================
-// \title  LedBlinkerTopology.hpp
+// \title  fprimecubesatTopology.hpp
 // \brief header file containing the topology instantiation definitions
 //
 // ======================================================================
-#ifndef LEDBLINKER_LEDBLINKERTOPOLOGY_HPP
-#define LEDBLINKER_LEDBLINKERTOPOLOGY_HPP
-// Included for access to LedBlinker::TopologyState and LedBlinker::ConfigObjects::pingEntries. These definitions are required by the
+#ifndef FPRIMECUBESAT_FPRIMECUBESATTOPOLOGY_HPP
+#define FPRIMECUBESAT_FPRIMECUBESATTOPOLOGY_HPP
+// Included for access to fprimecubesat::TopologyState and fprimecubesat::ConfigObjects::pingEntries. These definitions are required by the
 // autocoder, but are also used in this hand-coded topology.
-#include <LedBlinker/Top/LedBlinkerTopologyDefs.hpp>
+#include <fprimecubesat/Top/fprimecubesatTopologyDefs.hpp>
 
-// Remove unnecessary LedBlinker:: qualifications
-using namespace LedBlinker;
-namespace LedBlinker {
+// Remove unnecessary fprimecubesat:: qualifications
+using namespace fprimecubesat;
+namespace fprimecubesat {
 /**
  * \brief initialize and run the F´ topology
  *
@@ -32,7 +32,7 @@ namespace LedBlinker {
  * custom tasks often start radio communication it is convenient to start them last.
  *
  * The state argument carries command line inputs used to setup the topology. For an explanation of the required type
- * LedBlinker::TopologyState see: LedBlinkerTopologyDefs.hpp.
+ * fprimecubesat::TopologyState see: fprimecubesatTopologyDefs.hpp.
  *
  * \param state: object shuttling CLI arguments (e.g. hostname/port, or UART baudrate) needed to construct the topology
  */
@@ -53,7 +53,7 @@ void setupTopology(const TopologyState& state);
  * Step 1, 2, 3, and 4 must occur in-order as the tasks must be stopped before being joined. These tasks must be stopped
  * and joined before any active resources may be deallocated.
  *
- * For an explanation of the required type LedBlinker::TopologyState see: LedBlinkerTopologyDefs.hpp.
+ * For an explanation of the required type fprimecubesat::TopologyState see: fprimecubesatTopologyDefs.hpp.
  *
  * \param state: state object provided to setupTopology
  */
@@ -80,5 +80,5 @@ void startRateGroups(Fw::TimeInterval interval = Fw::TimeInterval(1,0));
  */
 void stopRateGroups();
 
-} // namespace LedBlinker
+} // namespace fprimecubesat
 #endif

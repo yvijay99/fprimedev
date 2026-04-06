@@ -1,4 +1,4 @@
-module LedBlinker {
+module fprimecubesat {
 
   # ----------------------------------------------------------------------
   # Base ID Convention

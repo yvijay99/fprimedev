@@ -1,4 +1,4 @@
-module LedBlinker {
+module fprimecubesat {
 
   # ----------------------------------------------------------------------
   # Symbolic constants for port numbers
@@ -10,7 +10,7 @@ module LedBlinker {
     rateGroup3
   }
 
-  topology LedBlinker {
+  topology fprimecubesat {
 
   # ----------------------------------------------------------------------
   # Subtopology imports
@@ -69,12 +69,12 @@ module LedBlinker {
   # Telemetry packets (only used when TlmPacketizer is used)
   # ----------------------------------------------------------------------
 
-    # include "LedBlinkerPackets.fppi"
+    # include "fprimecubesatPackets.fppi"
 
   # ----------------------------------------------------------------------
   # Direct graph specifiers
   # ----------------------------------------------------------------------
-    connections LedBlinker {
+    connections fprimecubesat {
       # Rate Group 1 (1Hz cycle) output is connected to led's run input
       rateGroup1.RateGroupMemberOut[4] -> led.run
       rateGroup2.RateGroupMemberOut[4] -> led2.run
@@ -190,7 +190,7 @@ module LedBlinker {
       radioManager.spiReadWrite -> radioSpiDriver.SpiReadWrite
     }
 
-    connections LedBlinker {
+    connections fprimecubesat {
 
     }
 
