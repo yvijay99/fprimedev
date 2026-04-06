@@ -44,11 +44,13 @@ module LedBlinker {
     instance sensorManager
     instance navigationManager
     instance magnetometerManager
+    instance tempManager
 
     # Bus driver instances
     instance imuI2cDriver
     instance magI2cDriver
     instance gpsI2cDriver
+    instance tempI2cDriver
     instance radioSpiDriver
 
   # ----------------------------------------------------------------------
@@ -137,6 +139,7 @@ module LedBlinker {
       rateGroup1.RateGroupMemberOut[3] -> ComCcsds.comQueue.run
       rateGroup1.RateGroupMemberOut[5] -> systemManager.run
       rateGroup1.RateGroupMemberOut[6] -> radioManager.run
+      rateGroup1.RateGroupMemberOut[7] -> tempManager.run
 
       # Rate group 2 (10Hz - fast periodic)
       rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup2] -> rateGroup2.CycleIn
@@ -172,6 +175,10 @@ module LedBlinker {
       # GPS I2C bus connections (same physical bus as mag, separate driver instance)
       navigationManager.busWriteRead -> gpsI2cDriver.writeRead
       navigationManager.busWrite -> gpsI2cDriver.write
+
+      # TMP102 I2C bus connections
+      tempManager.busWriteRead -> tempI2cDriver.writeRead
+      tempManager.busWrite -> tempI2cDriver.write
 
       # Radio SPI bus connection
       radioManager.spiReadWrite -> radioSpiDriver.SpiReadWrite

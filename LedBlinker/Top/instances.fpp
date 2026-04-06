@@ -72,6 +72,11 @@ module LedBlinker {
     stack size Default.STACK_SIZE \
     priority 90
 
+  instance tempManager: Components.TempManager base id 0x10025000 \
+    queue size Default.QUEUE_SIZE \
+    stack size Default.STACK_SIZE \
+    priority 90
+
   instance radioManager: Managers.RadioManager base id 0x10021000 \
     queue size Default.QUEUE_SIZE \
     stack size Default.STACK_SIZE \
@@ -118,6 +123,7 @@ module LedBlinker {
   instance imuI2cDriver: Drv.LinuxI2cDriver base id 0x10030000
   instance magI2cDriver: Drv.LinuxI2cDriver base id 0x10031000
   instance gpsI2cDriver: Drv.LinuxI2cDriver base id 0x10033000
+  instance tempI2cDriver: Drv.LinuxI2cDriver base id 0x10034000
   instance radioSpiDriver: Drv.LinuxSpiDriver base id 0x10032000
 
 }
