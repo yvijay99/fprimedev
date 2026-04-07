@@ -1,10 +1,19 @@
 module Managers {
 
-    @ Navigation Manager - reads GPS position and velocity data (stubbed for now)
+    @ Navigation Manager - reads GPS position and velocity data
     active component NavigationManager {
+
+        @ State machine instance
+        state machine instance navSm: NavigationManagerStateMachine
 
         @ Command to reset the GPS module
         async command GPS_RESET opcode 0
+
+        @ Enable simulation mode - returns hardcoded GPS coordinates without I2C
+        async command ENABLE_SIM opcode 1
+
+        @ Disable simulation mode - return to real I2C GPS reads
+        async command DISABLE_SIM opcode 2
 
         @ GPS fix acquired
         event GpsFixAcquired(
@@ -16,6 +25,16 @@ module Managers {
         event GpsFixLost \
             severity warning high \
             format "GPS fix lost"
+
+        @ Simulation mode enabled
+        event SimModeEnabled \
+            severity activity high \
+            format "NavigationManager: simulation mode enabled"
+
+        @ Simulation mode disabled
+        event SimModeDisabled \
+            severity activity high \
+            format "NavigationManager: simulation mode disabled"
 
         @ Latitude in degrees
         telemetry Latitude: F64
@@ -31,22 +50,6 @@ module Managers {
 
         @ Number of satellites in view
         telemetry NumSatellites: U8
-
-        @ Enable simulation mode - returns hardcoded GPS coordinates without I2C
-        async command ENABLE_SIM opcode 1
-
-        @ Disable simulation mode - return to real I2C GPS reads
-        async command DISABLE_SIM opcode 2
-
-        @ Simulation mode enabled
-        event SimModeEnabled \
-            severity activity high \
-            format "NavigationManager: simulation mode enabled"
-
-        @ Simulation mode disabled
-        event SimModeDisabled \
-            severity activity high \
-            format "NavigationManager: simulation mode disabled"
 
         @ Port receiving calls from the rate group
         async input port run: Svc.Sched

@@ -3,6 +3,9 @@ module Managers {
     @ Sensor Manager - reads ICM-20649 IMU (accelerometer + gyroscope) data over I2C
     active component SensorManager {
 
+        @ State machine instance
+        state machine instance sensorSm: SensorManagerStateMachine
+
         @ Command to trigger IMU calibration
         async command CALIBRATE_IMU opcode 0
 

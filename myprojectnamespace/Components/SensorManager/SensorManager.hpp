@@ -30,9 +30,19 @@ class SensorManager final : public SensorManagerComponentBase {
     static constexpr U8 DATA_SIZE = 14;
     static constexpr U8 ICM20649_WHO_AM_I = 0xE1;
 
-    bool m_simEnabled = false;  //!< When true, generates fake data instead of reading I2C
-    U32  m_simTick = 0;         //!< Tick counter used to vary simulated sensor values
+    U32 m_simTick = 0;
 
+    // ---- State machine action handlers ----
+    void Managers_SensorManagerStateMachine_action_doInit(
+        SmId smId, Managers_SensorManagerStateMachine::Signal signal) override;
+    void Managers_SensorManagerStateMachine_action_doRead(
+        SmId smId, Managers_SensorManagerStateMachine::Signal signal) override;
+    void Managers_SensorManagerStateMachine_action_doFaultRecovery(
+        SmId smId, Managers_SensorManagerStateMachine::Signal signal) override;
+    void Managers_SensorManagerStateMachine_action_doSimRead(
+        SmId smId, Managers_SensorManagerStateMachine::Signal signal) override;
+
+    // ---- Command handlers ----
     void CALIBRATE_IMU_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
     void ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
     void DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;

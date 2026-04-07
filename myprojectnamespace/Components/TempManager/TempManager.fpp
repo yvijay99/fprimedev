@@ -1,12 +1,18 @@
 module Components {
-    @ TMP 1 sensor component
+    @ TMP102 temperature sensor component
     active component TempManager {
 
-        # One async command/port is required for active components
-        # This should be overridden by the developers with a useful command/port
+        @ State machine instance
+        state machine instance tempSm: TempManagerStateMachine
 
         @ Read current temperature from TMP102 sensor
         async command READ_TEMP
+
+        @ Enable simulation mode - generates fake temperature data without I2C
+        async command ENABLE_SIM opcode 1
+
+        @ Disable simulation mode - return to reading real I2C hardware
+        async command DISABLE_SIM opcode 2
 
         @ Temperature measurement (deg C)
         telemetry Temperature: F32
@@ -25,6 +31,16 @@ module Components {
 
         @ Event for logging I2C read errors
         event TempReadError(status: Drv.I2cStatus) severity warning high format "I2C read error with status {}"
+
+        @ Simulation mode enabled
+        event SimModeEnabled \
+            severity activity high \
+            format "TempManager: simulation mode enabled"
+
+        @ Simulation mode disabled
+        event SimModeDisabled \
+            severity activity high \
+            format "TempManager: simulation mode disabled"
 
         ###############################################################################
         # Standard AC Ports: Required for Channels, Events, Commands, and Parameters  #

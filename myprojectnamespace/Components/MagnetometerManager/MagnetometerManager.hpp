@@ -33,9 +33,19 @@ class MagnetometerManager final : public MagnetometerManagerComponentBase {
     static constexpr U8 MAG_DATA_SIZE = 9;
     static constexpr F32 RM3100_SENSITIVITY = 75.0f;
 
-    bool m_simEnabled = false;
-    U32  m_simTick = 0;
+    U32 m_simTick = 0;
 
+    // ---- State machine action handlers ----
+    void Managers_MagnetometerManagerStateMachine_action_doInit(
+        SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal) override;
+    void Managers_MagnetometerManagerStateMachine_action_doRead(
+        SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal) override;
+    void Managers_MagnetometerManagerStateMachine_action_doFaultRecovery(
+        SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal) override;
+    void Managers_MagnetometerManagerStateMachine_action_doSimRead(
+        SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal) override;
+
+    // ---- Command handlers ----
     void CALIBRATE_MAG_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
     void ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
     void DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;

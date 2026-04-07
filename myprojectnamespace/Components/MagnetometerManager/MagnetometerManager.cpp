@@ -9,13 +9,117 @@
 
 namespace Managers {
 
-MagnetometerManager::MagnetometerManager(const char* const compName) : MagnetometerManagerComponentBase(compName) {}
+MagnetometerManager::MagnetometerManager(const char* const compName)
+    : MagnetometerManagerComponentBase(compName),
+      m_simTick(0) {}
 
 MagnetometerManager::~MagnetometerManager() {}
 
 void MagnetometerManager::configure(U32 i2cAddress) {
     this->m_i2cAddress = i2cAddress;
 }
+
+void MagnetometerManager::run_handler(FwIndexType portNum, U32 context) {
+    this->magSm_sendSignal_tick();
+}
+
+// ---- State machine actions ----
+
+void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doInit(
+    SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal)
+{
+    FW_ASSERT(smId == SmId::magSm);
+    F32 mx = 0, my = 0, mz = 0;
+    Drv::I2cStatus status = this->readMagData(mx, my, mz);
+    if (status == Drv::I2cStatus::I2C_OK) {
+        this->magSm_sendSignal_success();
+    } else {
+        this->magSm_sendSignal_fault();
+    }
+}
+
+void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doRead(
+    SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal)
+{
+    FW_ASSERT(smId == SmId::magSm);
+    F32 mx = 0, my = 0, mz = 0;
+    Drv::I2cStatus status = this->readMagData(mx, my, mz);
+
+    if (status == Drv::I2cStatus::I2C_OK) {
+        this->tlmWrite_MagX(mx);
+        this->tlmWrite_MagY(my);
+        this->tlmWrite_MagZ(mz);
+
+        F32 tempC = 0.0f;
+        if (this->readTemperature(tempC) == Drv::I2cStatus::I2C_OK) {
+            this->tlmWrite_MagTemp(tempC);
+        }
+
+        this->log_ACTIVITY_LO_MagReadOk();
+        if (this->isConnected_healthOut_OutputPort(0)) {
+            this->healthOut_out(0, true);
+        }
+    } else {
+        this->log_WARNING_HI_MagReadError(static_cast<I32>(status.e));
+        if (this->isConnected_healthOut_OutputPort(0)) {
+            this->healthOut_out(0, false);
+        }
+        this->magSm_sendSignal_fault();
+    }
+}
+
+void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doFaultRecovery(
+    SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal)
+{
+    FW_ASSERT(smId == SmId::magSm);
+    if (this->isConnected_healthOut_OutputPort(0)) {
+        this->healthOut_out(0, false);
+    }
+    F32 mx = 0, my = 0, mz = 0;
+    Drv::I2cStatus status = this->readMagData(mx, my, mz);
+    if (status == Drv::I2cStatus::I2C_OK) {
+        this->magSm_sendSignal_success();
+    }
+}
+
+void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doSimRead(
+    SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal)
+{
+    FW_ASSERT(smId == SmId::magSm);
+    F32 mx = 0, my = 0, mz = 0;
+    this->simulateMagData(mx, my, mz);
+    m_simTick++;
+
+    this->tlmWrite_MagX(mx);
+    this->tlmWrite_MagY(my);
+    this->tlmWrite_MagZ(mz);
+    this->log_ACTIVITY_LO_MagReadOk();
+    if (this->isConnected_healthOut_OutputPort(0)) {
+        this->healthOut_out(0, true);
+    }
+}
+
+// ---- Command handlers ----
+
+void MagnetometerManager::CALIBRATE_MAG_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    this->log_ACTIVITY_HI_MagCalibrationStarted();
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
+
+void MagnetometerManager::ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    m_simTick = 0;
+    this->log_ACTIVITY_HI_SimModeEnabled();
+    this->magSm_sendSignal_enableSim();
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
+
+void MagnetometerManager::DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    this->log_ACTIVITY_HI_SimModeDisabled();
+    this->magSm_sendSignal_disableSim();
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
+
+// ---- I2C helpers ----
 
 Drv::I2cStatus MagnetometerManager::readMagData(F32& mx, F32& my, F32& mz) {
     U8 regAddr = MX_REG;
@@ -69,64 +173,7 @@ void MagnetometerManager::simulateMagData(F32& mx, F32& my, F32& mz) {
     float t = static_cast<float>(m_simTick) * 0.1f;
     mx = 20.0f + 5.0f * sinf(t);
     my = 20.0f + 5.0f * sinf(t + 1.0f);
-    mz = -40.0f + 5.0f * sinf(t + 2.0f);  // typical Z component pointing down
-}
-
-void MagnetometerManager::CALIBRATE_MAG_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
-    this->log_ACTIVITY_HI_MagCalibrationStarted();
-    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
-}
-
-void MagnetometerManager::ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
-    m_simEnabled = true;
-    m_simTick = 0;
-    this->log_ACTIVITY_HI_SimModeEnabled();
-    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
-}
-
-void MagnetometerManager::DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
-    m_simEnabled = false;
-    this->log_ACTIVITY_HI_SimModeDisabled();
-    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
-}
-
-void MagnetometerManager::run_handler(FwIndexType portNum, U32 context) {
-    F32 mx = 0, my = 0, mz = 0;
-
-    if (m_simEnabled) {
-        this->simulateMagData(mx, my, mz);
-        m_simTick++;
-        this->tlmWrite_MagX(mx);
-        this->tlmWrite_MagY(my);
-        this->tlmWrite_MagZ(mz);
-        this->log_ACTIVITY_LO_MagReadOk();
-        if (this->isConnected_healthOut_OutputPort(0)) {
-            this->healthOut_out(0, true);
-        }
-    } else if (this->isConnected_busWriteRead_OutputPort(0)) {
-        Drv::I2cStatus status = this->readMagData(mx, my, mz);
-
-        if (status == Drv::I2cStatus::I2C_OK) {
-            this->tlmWrite_MagX(mx);
-            this->tlmWrite_MagY(my);
-            this->tlmWrite_MagZ(mz);
-
-            F32 tempC = 0.0f;
-            if (this->readTemperature(tempC) == Drv::I2cStatus::I2C_OK) {
-                this->tlmWrite_MagTemp(tempC);
-            }
-
-            this->log_ACTIVITY_LO_MagReadOk();
-            if (this->isConnected_healthOut_OutputPort(0)) {
-                this->healthOut_out(0, true);
-            }
-        } else {
-            this->log_WARNING_HI_MagReadError(static_cast<I32>(status.e));
-            if (this->isConnected_healthOut_OutputPort(0)) {
-                this->healthOut_out(0, false);
-            }
-        }
-    }
+    mz = -40.0f + 5.0f * sinf(t + 2.0f);
 }
 
 }  // namespace Managers

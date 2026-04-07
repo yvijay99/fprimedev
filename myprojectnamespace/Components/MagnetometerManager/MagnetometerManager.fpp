@@ -3,6 +3,9 @@ module Managers {
     @ Magnetometer Manager - reads PNI RM3100 magnetometer data over I2C
     active component MagnetometerManager {
 
+        @ State machine instance
+        state machine instance magSm: MagnetometerManagerStateMachine
+
         @ Command to trigger magnetometer calibration
         async command CALIBRATE_MAG opcode 0
 

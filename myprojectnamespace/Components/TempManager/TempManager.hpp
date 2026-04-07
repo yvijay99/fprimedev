@@ -20,10 +20,25 @@ class TempManager final : public TempManagerComponentBase {
     ~TempManager();
 
   private:
+    U32 m_simTick = 0;
+
+    // ---- State machine action handlers ----
+    void Components_TempManagerStateMachine_action_doInit(
+        SmId smId, Components_TempManagerStateMachine::Signal signal) override;
+    void Components_TempManagerStateMachine_action_doRead(
+        SmId smId, Components_TempManagerStateMachine::Signal signal) override;
+    void Components_TempManagerStateMachine_action_doFaultRecovery(
+        SmId smId, Components_TempManagerStateMachine::Signal signal) override;
+    void Components_TempManagerStateMachine_action_doSimRead(
+        SmId smId, Components_TempManagerStateMachine::Signal signal) override;
+
+    // ---- Command handlers ----
     void run_handler(FwIndexType portNum, U32 context) override;
     void READ_TEMP_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
+    void ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
+    void DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
 
-    void readAndReportTemp();
+    Drv::I2cStatus readRawTemp(F32& temperature);
 };
 
 }  // namespace Components

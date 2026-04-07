@@ -50,6 +50,146 @@ static F64 str2deg(const char* coord, char direction, bool isLat) {
     return result;
 }
 
+NavigationManager::NavigationManager(const char* const compName) : NavigationManagerComponentBase(compName) {}
+
+NavigationManager::~NavigationManager() {}
+
+void NavigationManager::run_handler(FwIndexType portNum, U32 context) {
+    this->navSm_sendSignal_tick();
+}
+
+// ---- State machine actions ----
+
+void NavigationManager::Managers_NavigationManagerStateMachine_action_doInit(
+    SmId smId, Managers_NavigationManagerStateMachine::Signal signal)
+{
+    FW_ASSERT(smId == SmId::navSm);
+    F64 lat = 0, lon = 0;
+    F32 alt = 0, speed = 0;
+    U8 sats = 0;
+    Drv::I2cStatus status = this->readGpsData(lat, lon, alt, speed, sats);
+    if (status == Drv::I2cStatus::I2C_OK) {
+        this->navSm_sendSignal_success();
+    } else {
+        this->navSm_sendSignal_fault();
+    }
+}
+
+void NavigationManager::Managers_NavigationManagerStateMachine_action_doRead(
+    SmId smId, Managers_NavigationManagerStateMachine::Signal signal)
+{
+    FW_ASSERT(smId == SmId::navSm);
+    F64 lat = 0, lon = 0;
+    F32 alt = 0, speed = 0;
+    U8 sats = 0;
+    Drv::I2cStatus status = this->readGpsData(lat, lon, alt, speed, sats);
+
+    if (status != Drv::I2cStatus::I2C_OK) {
+        this->log_WARNING_HI_GpsFixLost();
+        if (this->isConnected_healthOut_OutputPort(0)) {
+            this->healthOut_out(0, false);
+        }
+        this->navSm_sendSignal_fault();
+        return;
+    }
+
+    this->reportGpsTelemetry(lat, lon, alt, speed, sats);
+    if (this->isConnected_healthOut_OutputPort(0)) {
+        this->healthOut_out(0, true);
+    }
+}
+
+void NavigationManager::Managers_NavigationManagerStateMachine_action_doFaultRecovery(
+    SmId smId, Managers_NavigationManagerStateMachine::Signal signal)
+{
+    FW_ASSERT(smId == SmId::navSm);
+    if (this->isConnected_healthOut_OutputPort(0)) {
+        this->healthOut_out(0, false);
+    }
+    F64 lat = 0, lon = 0;
+    F32 alt = 0, speed = 0;
+    U8 sats = 0;
+    Drv::I2cStatus status = this->readGpsData(lat, lon, alt, speed, sats);
+    if (status == Drv::I2cStatus::I2C_OK) {
+        this->navSm_sendSignal_success();
+    }
+}
+
+void NavigationManager::Managers_NavigationManagerStateMachine_action_doSimRead(
+    SmId smId, Managers_NavigationManagerStateMachine::Signal signal)
+{
+    FW_ASSERT(smId == SmId::navSm);
+    this->reportGpsTelemetry(42.2808, -83.7430, 270.0f, 0.0f, 8);
+    if (this->isConnected_healthOut_OutputPort(0)) {
+        this->healthOut_out(0, true);
+    }
+}
+
+// ---- Command handlers ----
+
+void NavigationManager::GPS_RESET_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    this->m_hasFix = false;
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
+
+void NavigationManager::ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    this->log_ACTIVITY_HI_SimModeEnabled();
+    this->navSm_sendSignal_enableSim();
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
+
+void NavigationManager::DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    this->log_ACTIVITY_HI_SimModeDisabled();
+    this->navSm_sendSignal_disableSim();
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
+
+// ---- Helpers ----
+
+void NavigationManager::reportGpsTelemetry(F64 lat, F64 lon, F32 alt, F32 speed, U8 numSats) {
+    bool currentFix = (numSats >= MIN_SATELLITES_FOR_FIX);
+
+    this->tlmWrite_Latitude(lat);
+    this->tlmWrite_Longitude(lon);
+    this->tlmWrite_Altitude(alt);
+    this->tlmWrite_GroundSpeed(speed);
+    this->tlmWrite_NumSatellites(numSats);
+
+    if (currentFix && !this->m_hasFix) {
+        this->m_hasFix = true;
+        this->log_ACTIVITY_HI_GpsFixAcquired(numSats);
+    } else if (!currentFix && this->m_hasFix) {
+        this->m_hasFix = false;
+        this->log_WARNING_HI_GpsFixLost();
+    }
+}
+
+void NavigationManager::configure() {
+    U8 message[] = {
+        0xB5, 0x62,
+        0x06, 0x8A,
+        0x09, 0x00,
+        0x00,
+        0x03,
+        0x00, 0x00,
+        0x21, 0x00, 0x11, 0x20,
+        0x08,
+        0x00,
+        0x00
+    };
+
+    U8 ck_a = 0, ck_b = 0;
+    for (U8 i = 2; i < 15; i++) {
+        ck_a += message[i];
+        ck_b += ck_a;
+    }
+    message[15] = ck_a;
+    message[16] = ck_b;
+
+    Fw::Buffer writeBuffer(message, sizeof(message));
+    this->busWrite_out(0, GPS_I2C_ADDRESS, writeBuffer);
+}
+
 Drv::I2cStatus NavigationManager::readGpsData(F64& lat, F64& lon, F32& alt, F32& speed, U8& numSats) {
     U8 accumBuf[GPS_BUFFER_SIZE] = {};
     U32 accumLen = 0;
@@ -100,7 +240,6 @@ Drv::I2cStatus NavigationManager::readGpsData(F64& lat, F64& lon, F32& alt, F32&
         return Drv::I2cStatus::I2C_OK;
     }
 
-    bool gotRmc = false, gotGga = false;
     U32 i = 0;
     while (i < accumLen) {
         if (accumBuf[i] != '$') { i++; continue; }
@@ -130,7 +269,6 @@ Drv::I2cStatus NavigationManager::readGpsData(F64& lat, F64& lon, F32& alt, F32&
         if (strncmp(sentence + 1, "GNRMC", 5) == 0 && numFields > 8) {
             if (fields[2] && fields[2][0] == 'V') { i = end + 2; continue; }
             speed = static_cast<F32>(fields[7] ? atof(fields[7]) : 0.0);
-            gotRmc = true;
         }
 
         if (strncmp(sentence + 1, "GNGGA", 5) == 0 && numFields > 9) {
@@ -140,105 +278,12 @@ Drv::I2cStatus NavigationManager::readGpsData(F64& lat, F64& lon, F32& alt, F32&
             }
             numSats = static_cast<U8>(fields[7] ? atoi(fields[7]) : 0);
             alt     = static_cast<F32>(fields[9] ? atof(fields[9]) : 0.0f);
-            gotGga  = true;
         }
 
         i = end + 2;
     }
 
     return Drv::I2cStatus::I2C_OK;
-}
-
-void NavigationManager::configure() {
-    U8 message[] = {
-        0xB5, 0x62,             // UBX header
-        0x06, 0x8A,             // class, ID (UBX-CFG-VALSET)
-        0x09, 0x00,             // payload length
-        0x00,                   // version
-        0x03,                   // RAM + BBR write
-        0x00, 0x00,             // reserved
-        0x21, 0x00, 0x11, 0x20, // dynamic platform model key
-        0x08,                   // airborne <4g
-        0x00,                   // checksum A (computed below)
-        0x00                    // checksum B (computed below)
-    };
-
-    U8 ck_a = 0, ck_b = 0;
-    for (U8 i = 2; i < 15; i++) {
-        ck_a += message[i];
-        ck_b += ck_a;
-    }
-    message[15] = ck_a;
-    message[16] = ck_b;
-
-    Fw::Buffer writeBuffer(message, sizeof(message));
-    this->busWrite_out(0, GPS_I2C_ADDRESS, writeBuffer);
-}
-
-NavigationManager::NavigationManager(const char* const compName) : NavigationManagerComponentBase(compName) {}
-
-NavigationManager::~NavigationManager() {}
-
-void NavigationManager::GPS_RESET_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
-    this->m_hasFix = false;
-    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
-}
-
-void NavigationManager::ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
-    m_simEnabled = true;
-    this->log_ACTIVITY_HI_SimModeEnabled();
-    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
-}
-
-void NavigationManager::DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
-    m_simEnabled = false;
-    this->log_ACTIVITY_HI_SimModeDisabled();
-    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
-}
-
-void NavigationManager::run_handler(FwIndexType portNum, U32 context) {
-    F64 latitude = 0.0, longitude = 0.0;
-    F32 altitude = 0.0f, groundSpeed = 0.0f;
-    U8 numSatellites = 0;
-
-    if (m_simEnabled) {
-        latitude     = 42.2808;
-        longitude    = -83.7430;
-        altitude     = 270.0f;
-        groundSpeed  = 0.0f;
-        numSatellites = 8;
-        if (this->isConnected_healthOut_OutputPort(0)) {
-            this->healthOut_out(0, true);
-        }
-    } else {
-        Drv::I2cStatus status = this->readGpsData(latitude, longitude, altitude, groundSpeed, numSatellites);
-        if (status != Drv::I2cStatus::I2C_OK) {
-            this->log_WARNING_HI_GpsFixLost();
-            if (this->isConnected_healthOut_OutputPort(0)) {
-                this->healthOut_out(0, false);
-            }
-            return;
-        }
-        if (this->isConnected_healthOut_OutputPort(0)) {
-            this->healthOut_out(0, true);
-        }
-    }
-
-    bool currentFix = (numSatellites >= MIN_SATELLITES_FOR_FIX);
-
-    this->tlmWrite_Latitude(latitude);
-    this->tlmWrite_Longitude(longitude);
-    this->tlmWrite_Altitude(altitude);
-    this->tlmWrite_GroundSpeed(groundSpeed);
-    this->tlmWrite_NumSatellites(numSatellites);
-
-    if (currentFix && !this->m_hasFix) {
-        this->m_hasFix = true;
-        this->log_ACTIVITY_HI_GpsFixAcquired(numSatellites);
-    } else if (!currentFix && this->m_hasFix) {
-        this->m_hasFix = false;
-        this->log_WARNING_HI_GpsFixLost();
-    }
 }
 
 }  // namespace Managers
