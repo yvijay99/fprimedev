@@ -1,6 +1,8 @@
 // MagnetometerManager.cpp
 
 #include <cmath>
+#include <cstring>
+#include <unistd.h>
 #include "myprojectnamespace/Components/MagnetometerManager/MagnetometerManager.hpp"
 
 
@@ -21,27 +23,27 @@ void MagnetometerManager::run_handler(FwIndexType portNum, U32 context) {
 }
 
 // state machine actions
-// heads up: we're on rateGroup2 (10Hz, one tick every 100ms).
-// the rm3100 in poll mode needs ~25ms between "start measurement" and "data ready".
-// we used to usleep(25000) between the two i2c calls but that blocked the rate group thread,
-// which also blocks every other component sharing the same rate group. bad news.
-// instead we split the read across two ticks: tick N writes the poll register, tick N+1 reads
-// the data register. 100ms between them is way more than the 25ms the chip needs, so it's safe.
-// net effect: we get a fresh reading every 200ms (5Hz), which is plenty for attitude.
 
-// first tick after boot: kick off a measurement so tick 2 can actually read something
+// try a poll read to verify i2c works, retries 3 times for bus contention on startup
 void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doInit(
     SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal)
 {
     FW_ASSERT(smId == SmId::magSm);
-    Drv::I2cStatus status = this->triggerMeasurement();
+    F32 mx = 0, my = 0, mz = 0;
+    Drv::I2cStatus status = Drv::I2cStatus::I2C_OTHER_ERR;
+
+    for (U32 i = 0; i < 3; i++) {
+        status = this->readMagData(mx, my, mz);
+        if (status == Drv::I2cStatus::I2C_OK) {
+            break;
+        }
+        usleep(200000);  // 200ms between retries
+    }
 
     if (status == Drv::I2cStatus::I2C_OK) {
-        m_pollIssued = true;
         this->log_ACTIVITY_HI_StateChange(MagnetometerManager_SensorState::RUNNING);
         this->magSm_sendSignal_success();
     } else {
-        m_pollIssued = false;
         this->log_ACTIVITY_HI_StateChange(MagnetometerManager_SensorState::FAULT);
         if (this->isConnected_healthOut_OutputPort(0)) {
             this->healthOut_out(0, false);
@@ -50,31 +52,13 @@ void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doInit
     }
 }
 
-// called every 100ms tick. alternates between "trigger" and "read" using m_pollIssued
-// so we never need to sleep waiting for the chip to finish converting.
+// reads mag data and writes telemetry, faults on i2c error
 void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doRead(
     SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal)
 {
     FW_ASSERT(smId == SmId::magSm);
-
-    // no measurement in flight yet: fire one off and bail, we'll read it next tick
-    if (!m_pollIssued) {
-        if (this->triggerMeasurement() != Drv::I2cStatus::I2C_OK) {
-            this->log_ACTIVITY_HI_StateChange(MagnetometerManager_SensorState::FAULT);
-            if (this->isConnected_healthOut_OutputPort(0)) {
-                this->healthOut_out(0, false);
-            }
-            this->magSm_sendSignal_fault();
-            return;
-        }
-        m_pollIssued = true;
-        return;
-    }
-
-    // second tick: measurement should be done by now, pull the 9 data bytes
     F32 mx = 0, my = 0, mz = 0;
     Drv::I2cStatus status = this->readMagData(mx, my, mz);
-    m_pollIssued = false;
 
     if (status != Drv::I2cStatus::I2C_OK) {
         this->log_ACTIVITY_HI_StateChange(MagnetometerManager_SensorState::FAULT);
@@ -88,29 +72,15 @@ void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doRead
     this->tlmWrite_MagX(mx);
     this->tlmWrite_MagY(my);
     this->tlmWrite_MagZ(mz);
-    // we read at 5Hz so an event every 10 reads = one event every 2s, not spammy
-    if (++m_readCount % READ_LOG_INTERVAL == 0) {
-        this->log_ACTIVITY_LO_MagReading(mx, my, mz);
-    }
 }
 
-// same two-phase dance as doRead, just flips back to RUNNING on a clean read
+// tries to read again, if it works we're back to running
 void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doFaultRecovery(
     SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal)
 {
     FW_ASSERT(smId == SmId::magSm);
-
-    if (!m_pollIssued) {
-        if (this->triggerMeasurement() == Drv::I2cStatus::I2C_OK) {
-            m_pollIssued = true;
-        }
-        return;
-    }
-
     F32 mx = 0, my = 0, mz = 0;
     Drv::I2cStatus status = this->readMagData(mx, my, mz);
-    m_pollIssued = false;
-
     if (status == Drv::I2cStatus::I2C_OK) {
         this->tlmWrite_MagX(mx);
         this->tlmWrite_MagY(my);
@@ -123,7 +93,7 @@ void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doFaul
     }
 }
 
-// fake mag data wobbling around earth-field-ish values when there's no hardware
+// generates fake sinusoidal mag data for testing without hardware
 void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doSimRead(
     SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal)
 {
@@ -135,13 +105,9 @@ void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doSimR
     this->tlmWrite_MagX(mx);
     this->tlmWrite_MagY(my);
     this->tlmWrite_MagZ(mz);
-    if (++m_readCount % READ_LOG_INTERVAL == 0) {
-        this->log_ACTIVITY_LO_MagReading(mx, my, mz);
-    }
 }
 
 // command handlers
-
 void MagnetometerManager::CALIBRATE_MAG_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     this->log_ACTIVITY_HI_MagCalibrationStarted();
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
@@ -160,23 +126,44 @@ void MagnetometerManager::DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
-// write 0x70 to POLL_REG (0x00) = "start a one-shot measurement on all three axes"
-// rm3100 will take ~25ms to finish, we read next tick (~100ms later) so no sleep needed
-Drv::I2cStatus MagnetometerManager::triggerMeasurement() {
-    U8 cmd[2] = {POLL_REG, POLL_XYZ};
-    Fw::Buffer buffer(cmd, sizeof(cmd));
-    return this->busWrite_out(0, this->m_i2cAddress, buffer);
-}
-
-// pull 9 bytes starting at MX_REG (0x24): 3 axes x 3 bytes each (24-bit signed)
-// divide by 75 (sensitivity count) to get microtesla
+// poll mode: trigger xyz measurement, wait 25ms for conversion, read 9 bytes
+// retries once on bus contention with gps
+// raw 24-bit signed values divided by sensitivity (75) to get microtesla
 Drv::I2cStatus MagnetometerManager::readMagData(F32& mx, F32& my, F32& mz) {
+    // trigger measurement on all 3 axes
+    U8 pollCmd[2] = {POLL_REG, 0x70};
+    Fw::Buffer pollBuffer(pollCmd, sizeof(pollCmd));
+    Drv::I2cStatus status = this->busWrite_out(0, this->m_i2cAddress, pollBuffer);
+    if (status != Drv::I2cStatus::I2C_OK) {
+        // retry once after 10ms
+        usleep(10000);
+        pollCmd[0] = POLL_REG;
+        pollCmd[1] = 0x70;
+        pollBuffer = Fw::Buffer(pollCmd, sizeof(pollCmd));
+        status = this->busWrite_out(0, this->m_i2cAddress, pollBuffer);
+        if (status != Drv::I2cStatus::I2C_OK) {
+            return status;
+        }
+    }
+
+    usleep(25000);
+
     U8 regAddr = MX_REG;
     Fw::Buffer writeBuffer(&regAddr, sizeof(regAddr));
     U8 rawData[MAG_DATA_SIZE] = {};
     Fw::Buffer readBuffer(rawData, sizeof(rawData));
 
-    Drv::I2cStatus status = this->busWriteRead_out(0, this->m_i2cAddress, writeBuffer, readBuffer);
+    status = this->busWriteRead_out(0, this->m_i2cAddress, writeBuffer, readBuffer);
+
+    // retry read once if bus was busy
+    if (status != Drv::I2cStatus::I2C_OK) {
+        usleep(10000);
+        regAddr = MX_REG;
+        writeBuffer = Fw::Buffer(&regAddr, sizeof(regAddr));
+        memset(rawData, 0, sizeof(rawData));
+        readBuffer = Fw::Buffer(rawData, sizeof(rawData));
+        status = this->busWriteRead_out(0, this->m_i2cAddress, writeBuffer, readBuffer);
+    }
 
     if (status == Drv::I2cStatus::I2C_OK) {
         I32 rawMx = (static_cast<I32>(rawData[0]) << 16) |
