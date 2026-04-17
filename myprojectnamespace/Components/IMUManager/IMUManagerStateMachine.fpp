@@ -1,6 +1,6 @@
 module Managers {
 
-    state machine SensorManagerStateMachine {
+    state machine IMUManagerStateMachine {
 
         initial enter INIT
 

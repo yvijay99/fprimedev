@@ -68,12 +68,10 @@ module fprimecubesat {
   # ----------------------------------------------------------------------
 
   instance systemManager: Managers.SystemManager base id 0x10020000 \
-    queue size Default.QUEUE_SIZE \
-    stack size Default.STACK_SIZE \
-    priority 90
+    queue size 50
 
   instance tempManager: Components.TempManager base id 0x10025000 \
-    queue size Default.QUEUE_SIZE \
+    queue size 50 \
     stack size Default.STACK_SIZE \
     priority 90
 
@@ -86,18 +84,18 @@ module fprimecubesat {
   # Manager component instances (10Hz rate group)
   # ----------------------------------------------------------------------
 
-  instance sensorManager: Managers.SensorManager base id 0x10022000 \
-    queue size Default.QUEUE_SIZE \
+  instance imuManager: Managers.IMUManager base id 0x10022000 \
+    queue size 50 \
     stack size Default.STACK_SIZE \
     priority 100
 
   instance navigationManager: Managers.NavigationManager base id 0x10023000 \
-    queue size Default.QUEUE_SIZE \
+    queue size 50 \
     stack size Default.STACK_SIZE \
     priority 100
 
   instance magnetometerManager: Managers.MagnetometerManager base id 0x10024000 \
-    queue size Default.QUEUE_SIZE \
+    queue size 50 \
     stack size Default.STACK_SIZE \
     priority 100
 

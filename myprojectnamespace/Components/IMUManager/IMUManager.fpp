@@ -1,10 +1,10 @@
 module Managers {
 
-    active component MagnetometerManager {
+    active component IMUManager {
 
-        state machine instance magSm: MagnetometerManagerStateMachine
+        state machine instance imuSm: IMUManagerStateMachine
 
-        async command CALIBRATE_MAG opcode 0
+        async command CALIBRATE_IMU opcode 0
 
         async command ENABLE_SIM opcode 1
 
@@ -14,19 +14,21 @@ module Managers {
 
         event StateChange(newState: SensorState) \
             severity activity high \
-            format "MagnetometerManager: {}"
+            format "IMUManager: {}"
 
-        event MagCalibrationStarted \
+        event ImuCalibrationStarted \
             severity activity high \
-            format "Magnetometer calibration started"
+            format "IMU calibration started"
 
-        event MagReading(mx: F32, my: F32, mz: F32) \
-            severity activity low \
-            format "Mag reading: X={f} uT, Y={f} uT, Z={f} uT"
+        telemetry AccelX: F32
+        telemetry AccelY: F32
+        telemetry AccelZ: F32
 
-        telemetry MagX: F32
-        telemetry MagY: F32
-        telemetry MagZ: F32
+        telemetry GyroX: F32
+        telemetry GyroY: F32
+        telemetry GyroZ: F32
+
+        telemetry ImuTemp: F32
 
         async input port run: Svc.Sched
 

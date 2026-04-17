@@ -18,10 +18,10 @@ using namespace fprimecubesat;
 // Instantiate a malloc allocator for cmdSeq buffer allocation
 Fw::MallocAllocator mallocator;
 
-// Rate group divisors: Timer ticks at 10Hz (100ms)
-//   rateGroup1: divider 10 -> 1Hz  (slow periodic: system manager, radio manager)
-//   rateGroup2: divider 1  -> 10Hz (fast periodic: sensor, navigation, magnetometer managers)
-//   rateGroup3: divider 4  -> 2.5Hz (infrastructure: health, buffers, data products)
+// rate group divisors: timer ticks at 10hz (100ms)
+//   rateGroup1: divider 10 -> 1hz  (system, radio, temp, nav, imu managers)
+//   rateGroup2: divider 1  -> 10hz (cmdSeq)
+//   rateGroup3: divider 4  -> 2.5hz (health, buffers, data products, magnetometer)
 Svc::RateGroupDriver::DividerSet rateGroupDivisorsSet{{{10, 0}, {1, 0}, {4, 0}}};
 
 // Rate groups may supply a context token to each of the attached children whose purpose is set by the project. The
@@ -65,7 +65,7 @@ void configureTopology() {
         Fw::Logger::log("[ERROR] Failed to open GPIO pin 17\n");
     }
 
-    // I2C driver for IMU (SensorManager) - Raspberry Pi 4 I2C bus 1
+    // I2C driver for IMU (IMUManager) - Raspberry Pi 4 I2C bus 1
     bool i2cImuOk = imuI2cDriver.open("/dev/i2c-1");
     if (!i2cImuOk) {
         Fw::Logger::log("[ERROR] Failed to open I2C for IMU\n");
@@ -83,6 +83,12 @@ void configureTopology() {
         Fw::Logger::log("[ERROR] Failed to open I2C for GPS\n");
     }
 
+    // I2C driver for TMP102 temperature sensor
+    bool i2cTempOk = tempI2cDriver.open("/dev/i2c-1");
+    if (!i2cTempOk) {
+        Fw::Logger::log("[ERROR] Failed to open I2C for temperature sensor\n");
+    }
+
     // SPI driver for Radio - Raspberry Pi 4 SPI bus 0, chip select 0
     bool spiOk = radioSpiDriver.open(0, 0, Drv::SPI_FREQUENCY_1MHZ);
     if (!spiOk) {
@@ -90,7 +96,7 @@ void configureTopology() {
     }
 
     // Configure manager I2C addresses
-    sensorManager.configure(0x68);
+    imuManager.configure(0x68);
     magnetometerManager.configure(0x20);
     navigationManager.configure();
 }

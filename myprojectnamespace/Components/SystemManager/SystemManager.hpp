@@ -1,8 +1,4 @@
-// ======================================================================
-// \title  SystemManager.hpp
-// \author yuktivijay
-// \brief  hpp file for SystemManager component implementation class
-// ======================================================================
+// SystemManager.hpp
 
 #ifndef Managers_SystemManager_HPP
 #define Managers_SystemManager_HPP
@@ -17,8 +13,6 @@ class SystemManager final : public SystemManagerComponentBase {
     ~SystemManager();
 
   private:
-    // ---- State machine action handlers ----
-
     void Managers_SystemManagerStateMachine_action_runHealthCheck(
         SmId smId,
         Managers_SystemManagerStateMachine::Signal signal
@@ -34,14 +28,12 @@ class SystemManager final : public SystemManagerComponentBase {
         Managers_SystemManagerStateMachine::Signal signal
     ) override;
 
-    // ---- Port handlers ----
     void run_handler(FwIndexType portNum, U32 context) override;
     void sensorHealth_handler(FwIndexType portNum, bool healthy) override;
     void tempHealth_handler(FwIndexType portNum, bool healthy) override;
     void gpsHealth_handler(FwIndexType portNum, bool healthy) override;
     void magHealth_handler(FwIndexType portNum, bool healthy) override;
 
-    // ---- Command handlers ----
     void REPORT_STATUS_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
     void INJECT_COMPONENT_FAULT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
     void CLEAR_FAULT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
@@ -51,20 +43,19 @@ class SystemManager final : public SystemManagerComponentBase {
     void CLEAR_GPS_FAULT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
     void CLEAR_MAG_FAULT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
 
-    // ---- Member variables ----
     U64 m_uptimeSeconds = 0;
     U32 m_totalComponentFaults = 0;
-    U32 m_degradedTicks = 0;       //!< Ticks spent in DEGRADED - escalates at threshold
-    //! Sends faultCleared signal if no component faults remain active
+    U32 m_degradedTicks = 0;
+
     void checkAllClear();
 
     bool m_sensorFaultActive = false;
     bool m_tempFaultActive = false;
     bool m_gpsFaultActive = false;
     bool m_magFaultActive = false;
-    bool m_ledToggle = false;      //!< Used to blink LED in DEGRADED state
+    bool m_ledToggle = false;
 
-    static constexpr U32 ESCALATION_THRESHOLD = 10;  //!< Ticks in DEGRADED before auto-escalate
+    static constexpr U32 ESCALATION_THRESHOLD = 10;
 };
 
 }  // namespace Managers

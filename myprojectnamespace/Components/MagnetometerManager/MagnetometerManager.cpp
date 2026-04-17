@@ -1,11 +1,8 @@
-// ======================================================================
-// \title  MagnetometerManager.cpp
-// \author yuktivijay
-// \brief  cpp file for MagnetometerManager component implementation class
-// ======================================================================
+// MagnetometerManager.cpp
 
 #include <cmath>
 #include "myprojectnamespace/Components/MagnetometerManager/MagnetometerManager.hpp"
+
 
 namespace Managers {
 
@@ -23,17 +20,22 @@ void MagnetometerManager::run_handler(FwIndexType portNum, U32 context) {
     this->magSm_sendSignal_tick();
 }
 
-// ---- State machine actions ----
-
 void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doInit(
     SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal)
 {
     FW_ASSERT(smId == SmId::magSm);
-    F32 mx = 0, my = 0, mz = 0;
-    Drv::I2cStatus status = this->readMagData(mx, my, mz);
+    Drv::I2cStatus status = this->triggerMeasurement();
+
     if (status == Drv::I2cStatus::I2C_OK) {
+        m_pollIssued = true;
+        this->log_ACTIVITY_HI_StateChange(MagnetometerManager_SensorState::RUNNING);
         this->magSm_sendSignal_success();
     } else {
+        m_pollIssued = false;
+        this->log_ACTIVITY_HI_StateChange(MagnetometerManager_SensorState::FAULT);
+        if (this->isConnected_healthOut_OutputPort(0)) {
+            this->healthOut_out(0, false);
+        }
         this->magSm_sendSignal_fault();
     }
 }
@@ -42,29 +44,38 @@ void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doRead
     SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal)
 {
     FW_ASSERT(smId == SmId::magSm);
+
+    if (!m_pollIssued) {
+        if (this->triggerMeasurement() != Drv::I2cStatus::I2C_OK) {
+            this->log_ACTIVITY_HI_StateChange(MagnetometerManager_SensorState::FAULT);
+            if (this->isConnected_healthOut_OutputPort(0)) {
+                this->healthOut_out(0, false);
+            }
+            this->magSm_sendSignal_fault();
+            return;
+        }
+        m_pollIssued = true;
+        return;
+    }
+
     F32 mx = 0, my = 0, mz = 0;
     Drv::I2cStatus status = this->readMagData(mx, my, mz);
+    m_pollIssued = false;
 
-    if (status == Drv::I2cStatus::I2C_OK) {
-        this->tlmWrite_MagX(mx);
-        this->tlmWrite_MagY(my);
-        this->tlmWrite_MagZ(mz);
-
-        F32 tempC = 0.0f;
-        if (this->readTemperature(tempC) == Drv::I2cStatus::I2C_OK) {
-            this->tlmWrite_MagTemp(tempC);
-        }
-
-        this->log_ACTIVITY_LO_MagReadOk();
-        if (this->isConnected_healthOut_OutputPort(0)) {
-            this->healthOut_out(0, true);
-        }
-    } else {
-        this->log_WARNING_HI_MagReadError(static_cast<I32>(status.e));
+    if (status != Drv::I2cStatus::I2C_OK) {
+        this->log_ACTIVITY_HI_StateChange(MagnetometerManager_SensorState::FAULT);
         if (this->isConnected_healthOut_OutputPort(0)) {
             this->healthOut_out(0, false);
         }
         this->magSm_sendSignal_fault();
+        return;
+    }
+
+    this->tlmWrite_MagX(mx);
+    this->tlmWrite_MagY(my);
+    this->tlmWrite_MagZ(mz);
+    if (++m_readCount % READ_LOG_INTERVAL == 0) {
+        this->log_ACTIVITY_LO_MagReading(mx, my, mz);
     }
 }
 
@@ -72,12 +83,26 @@ void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doFaul
     SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal)
 {
     FW_ASSERT(smId == SmId::magSm);
-    if (this->isConnected_healthOut_OutputPort(0)) {
-        this->healthOut_out(0, false);
+
+    if (!m_pollIssued) {
+        if (this->triggerMeasurement() == Drv::I2cStatus::I2C_OK) {
+            m_pollIssued = true;
+        }
+        return;
     }
+
     F32 mx = 0, my = 0, mz = 0;
     Drv::I2cStatus status = this->readMagData(mx, my, mz);
+    m_pollIssued = false;
+
     if (status == Drv::I2cStatus::I2C_OK) {
+        this->tlmWrite_MagX(mx);
+        this->tlmWrite_MagY(my);
+        this->tlmWrite_MagZ(mz);
+        this->log_ACTIVITY_HI_StateChange(MagnetometerManager_SensorState::RUNNING);
+        if (this->isConnected_healthOut_OutputPort(0)) {
+            this->healthOut_out(0, true);
+        }
         this->magSm_sendSignal_success();
     }
 }
@@ -93,13 +118,10 @@ void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doSimR
     this->tlmWrite_MagX(mx);
     this->tlmWrite_MagY(my);
     this->tlmWrite_MagZ(mz);
-    this->log_ACTIVITY_LO_MagReadOk();
-    if (this->isConnected_healthOut_OutputPort(0)) {
-        this->healthOut_out(0, true);
+    if (++m_readCount % READ_LOG_INTERVAL == 0) {
+        this->log_ACTIVITY_LO_MagReading(mx, my, mz);
     }
 }
-
-// ---- Command handlers ----
 
 void MagnetometerManager::CALIBRATE_MAG_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     this->log_ACTIVITY_HI_MagCalibrationStarted();
@@ -108,23 +130,26 @@ void MagnetometerManager::CALIBRATE_MAG_cmdHandler(FwOpcodeType opCode, U32 cmdS
 
 void MagnetometerManager::ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     m_simTick = 0;
-    this->log_ACTIVITY_HI_SimModeEnabled();
+    this->log_ACTIVITY_HI_StateChange(MagnetometerManager_SensorState::SIM);
     this->magSm_sendSignal_enableSim();
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
 void MagnetometerManager::DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
-    this->log_ACTIVITY_HI_SimModeDisabled();
+    this->log_ACTIVITY_HI_StateChange(MagnetometerManager_SensorState::INIT);
     this->magSm_sendSignal_disableSim();
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
-// ---- I2C helpers ----
+Drv::I2cStatus MagnetometerManager::triggerMeasurement() {
+    U8 cmd[2] = {POLL_REG, POLL_XYZ};
+    Fw::Buffer buffer(cmd, sizeof(cmd));
+    return this->busWrite_out(0, this->m_i2cAddress, buffer);
+}
 
 Drv::I2cStatus MagnetometerManager::readMagData(F32& mx, F32& my, F32& mz) {
     U8 regAddr = MX_REG;
     Fw::Buffer writeBuffer(&regAddr, sizeof(regAddr));
-
     U8 rawData[MAG_DATA_SIZE] = {};
     Fw::Buffer readBuffer(rawData, sizeof(rawData));
 
@@ -148,22 +173,6 @@ Drv::I2cStatus MagnetometerManager::readMagData(F32& mx, F32& my, F32& mz) {
         mx = static_cast<F32>(rawMx) / RM3100_SENSITIVITY;
         my = static_cast<F32>(rawMy) / RM3100_SENSITIVITY;
         mz = static_cast<F32>(rawMz) / RM3100_SENSITIVITY;
-    }
-
-    return status;
-}
-
-Drv::I2cStatus MagnetometerManager::readTemperature(F32& tempC) {
-    U8 regAddr = STATUS_REG;
-    Fw::Buffer writeBuffer(&regAddr, sizeof(regAddr));
-
-    U8 rawData[1] = {};
-    Fw::Buffer readBuffer(rawData, sizeof(rawData));
-
-    Drv::I2cStatus status = this->busWriteRead_out(0, this->m_i2cAddress, writeBuffer, readBuffer);
-
-    if (status == Drv::I2cStatus::I2C_OK) {
-        tempC = 0.0f;
     }
 
     return status;

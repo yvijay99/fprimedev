@@ -41,7 +41,7 @@ module fprimecubesat {
     # Manager instances
     instance systemManager
     instance radioManager
-    instance sensorManager
+    instance imuManager
     instance navigationManager
     instance magnetometerManager
     instance tempManager
@@ -140,13 +140,12 @@ module fprimecubesat {
       rateGroup1.RateGroupMemberOut[5] -> systemManager.run
       rateGroup1.RateGroupMemberOut[6] -> radioManager.run
       rateGroup1.RateGroupMemberOut[7] -> tempManager.run
+      rateGroup1.RateGroupMemberOut[8] -> navigationManager.run
+      rateGroup1.RateGroupMemberOut[9] -> imuManager.run
 
       # Rate group 2 (10Hz - fast periodic)
       rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup2] -> rateGroup2.CycleIn
       rateGroup2.RateGroupMemberOut[0] -> cmdSeq.schedIn
-      rateGroup2.RateGroupMemberOut[1] -> sensorManager.run
-      rateGroup2.RateGroupMemberOut[2] -> navigationManager.run
-      rateGroup2.RateGroupMemberOut[3] -> magnetometerManager.run
 
       # Rate group 3 (2.5Hz - infrastructure)
       rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup3] -> rateGroup3.CycleIn
@@ -155,6 +154,7 @@ module fprimecubesat {
       rateGroup3.RateGroupMemberOut[2] -> DataProducts.dpBufferManager.schedIn
       rateGroup3.RateGroupMemberOut[3] -> DataProducts.dpWriter.schedIn
       rateGroup3.RateGroupMemberOut[4] -> DataProducts.dpMgr.schedIn
+      rateGroup3.RateGroupMemberOut[5] -> magnetometerManager.run
     }
 
     connections CdhCore_cmdSeq {
@@ -165,8 +165,8 @@ module fprimecubesat {
 
     connections BusDrivers {
       # IMU I2C bus connections
-      sensorManager.busWriteRead -> imuI2cDriver.writeRead
-      sensorManager.busWrite -> imuI2cDriver.write
+      imuManager.busWriteRead -> imuI2cDriver.writeRead
+      imuManager.busWrite -> imuI2cDriver.write
 
       # Magnetometer I2C bus connections
       magnetometerManager.busWriteRead -> magI2cDriver.writeRead
@@ -181,7 +181,7 @@ module fprimecubesat {
       tempManager.busWrite -> tempI2cDriver.write
 
       # Component health reporting to SystemManager
-      sensorManager.healthOut -> systemManager.sensorHealth
+      imuManager.healthOut -> systemManager.sensorHealth
       tempManager.healthOut -> systemManager.tempHealth
       navigationManager.healthOut -> systemManager.gpsHealth
       magnetometerManager.healthOut -> systemManager.magHealth

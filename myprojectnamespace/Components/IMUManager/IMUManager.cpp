@@ -1,47 +1,37 @@
-// ======================================================================
-// \title  SensorManager.cpp
-// \author yuktivijay
-// \brief  cpp file for SensorManager component implementation class
-// ======================================================================
+// IMUManager.cpp
 
 #include <cmath>
-#include "myprojectnamespace/Components/SensorManager/SensorManager.hpp"
+#include "myprojectnamespace/Components/IMUManager/IMUManager.hpp"
+
 
 namespace Managers {
 
-SensorManager::SensorManager(const char* const compName)
-    : SensorManagerComponentBase(compName),
+IMUManager::IMUManager(const char* const compName)
+    : IMUManagerComponentBase(compName),
       m_simTick(0) {}
 
-SensorManager::~SensorManager() {}
+IMUManager::~IMUManager() {}
 
-void SensorManager::configure(U32 i2cAddress) {
+void IMUManager::configure(U32 i2cAddress) {
     this->m_i2cAddress = i2cAddress;
 }
 
-void SensorManager::run_handler(FwIndexType portNum, U32 context) {
-    this->sensorSm_sendSignal_tick();
+void IMUManager::run_handler(FwIndexType portNum, U32 context) {
+    this->imuSm_sendSignal_tick();
 }
 
-// ---- State machine actions ----
-
-void SensorManager::Managers_SensorManagerStateMachine_action_doInit(
-    SmId smId, Managers_SensorManagerStateMachine::Signal signal)
+void IMUManager::Managers_IMUManagerStateMachine_action_doInit(
+    SmId smId, Managers_IMUManagerStateMachine::Signal signal)
 {
-    FW_ASSERT(smId == SmId::sensorSm);
-    F32 ax = 0, ay = 0, az = 0, gx = 0, gy = 0, gz = 0, temp = 0;
-    Drv::I2cStatus status = this->readImuData(ax, ay, az, gx, gy, gz, temp);
-    if (status == Drv::I2cStatus::I2C_OK) {
-        this->sensorSm_sendSignal_success();
-    } else {
-        this->sensorSm_sendSignal_fault();
-    }
+    FW_ASSERT(smId == SmId::imuSm);
+    this->log_ACTIVITY_HI_StateChange(IMUManager_SensorState::SIM);
+    this->imuSm_sendSignal_enableSim();
 }
 
-void SensorManager::Managers_SensorManagerStateMachine_action_doRead(
-    SmId smId, Managers_SensorManagerStateMachine::Signal signal)
+void IMUManager::Managers_IMUManagerStateMachine_action_doRead(
+    SmId smId, Managers_IMUManagerStateMachine::Signal signal)
 {
-    FW_ASSERT(smId == SmId::sensorSm);
+    FW_ASSERT(smId == SmId::imuSm);
     F32 ax = 0, ay = 0, az = 0, gx = 0, gy = 0, gz = 0, temp = 0;
     Drv::I2cStatus status = this->readImuData(ax, ay, az, gx, gy, gz, temp);
 
@@ -53,37 +43,38 @@ void SensorManager::Managers_SensorManagerStateMachine_action_doRead(
         this->tlmWrite_GyroY(gy);
         this->tlmWrite_GyroZ(gz);
         this->tlmWrite_ImuTemp(temp);
-        this->log_ACTIVITY_LO_ImuReadOk();
-        if (this->isConnected_healthOut_OutputPort(0)) {
-            this->healthOut_out(0, true);
-        }
     } else {
-        this->log_WARNING_HI_ImuReadError(static_cast<I32>(status.e));
+        this->log_ACTIVITY_HI_StateChange(IMUManager_SensorState::FAULT);
         if (this->isConnected_healthOut_OutputPort(0)) {
             this->healthOut_out(0, false);
         }
-        this->sensorSm_sendSignal_fault();
+        this->imuSm_sendSignal_fault();
     }
 }
 
-void SensorManager::Managers_SensorManagerStateMachine_action_doFaultRecovery(
-    SmId smId, Managers_SensorManagerStateMachine::Signal signal)
+void IMUManager::Managers_IMUManagerStateMachine_action_doFaultRecovery(
+    SmId smId, Managers_IMUManagerStateMachine::Signal signal)
 {
-    FW_ASSERT(smId == SmId::sensorSm);
-    if (this->isConnected_healthOut_OutputPort(0)) {
-        this->healthOut_out(0, false);
-    }
+    FW_ASSERT(smId == SmId::imuSm);
     F32 ax = 0, ay = 0, az = 0, gx = 0, gy = 0, gz = 0, temp = 0;
     Drv::I2cStatus status = this->readImuData(ax, ay, az, gx, gy, gz, temp);
     if (status == Drv::I2cStatus::I2C_OK) {
-        this->sensorSm_sendSignal_success();
+        this->log_ACTIVITY_HI_StateChange(IMUManager_SensorState::RUNNING);
+        if (this->isConnected_healthOut_OutputPort(0)) {
+            this->healthOut_out(0, true);
+        }
+        this->imuSm_sendSignal_success();
+    } else {
+        if (this->isConnected_healthOut_OutputPort(0)) {
+            this->healthOut_out(0, false);
+        }
     }
 }
 
-void SensorManager::Managers_SensorManagerStateMachine_action_doSimRead(
-    SmId smId, Managers_SensorManagerStateMachine::Signal signal)
+void IMUManager::Managers_IMUManagerStateMachine_action_doSimRead(
+    SmId smId, Managers_IMUManagerStateMachine::Signal signal)
 {
-    FW_ASSERT(smId == SmId::sensorSm);
+    FW_ASSERT(smId == SmId::imuSm);
     F32 ax = 0, ay = 0, az = 0, gx = 0, gy = 0, gz = 0, temp = 0;
     this->simulateImuData(ax, ay, az, gx, gy, gz, temp);
     m_simTick++;
@@ -95,35 +86,27 @@ void SensorManager::Managers_SensorManagerStateMachine_action_doSimRead(
     this->tlmWrite_GyroY(gy);
     this->tlmWrite_GyroZ(gz);
     this->tlmWrite_ImuTemp(temp);
-    this->log_ACTIVITY_LO_ImuReadOk();
-    if (this->isConnected_healthOut_OutputPort(0)) {
-        this->healthOut_out(0, true);
-    }
 }
 
-// ---- Command handlers ----
-
-void SensorManager::CALIBRATE_IMU_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+void IMUManager::CALIBRATE_IMU_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     this->log_ACTIVITY_HI_ImuCalibrationStarted();
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
-void SensorManager::ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+void IMUManager::ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     m_simTick = 0;
-    this->log_ACTIVITY_HI_SimModeEnabled();
-    this->sensorSm_sendSignal_enableSim();
+    this->log_ACTIVITY_HI_StateChange(IMUManager_SensorState::SIM);
+    this->imuSm_sendSignal_enableSim();
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
-void SensorManager::DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
-    this->log_ACTIVITY_HI_SimModeDisabled();
-    this->sensorSm_sendSignal_disableSim();
+void IMUManager::DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    this->log_ACTIVITY_HI_StateChange(IMUManager_SensorState::INIT);
+    this->imuSm_sendSignal_disableSim();
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
-// ---- I2C helpers ----
-
-Drv::I2cStatus SensorManager::readImuData(F32& ax, F32& ay, F32& az,
+Drv::I2cStatus IMUManager::readImuData(F32& ax, F32& ay, F32& az,
                                            F32& gx, F32& gy, F32& gz,
                                            F32& temp) {
     U8 regAddr = ACCEL_XOUT_H;
@@ -155,7 +138,7 @@ Drv::I2cStatus SensorManager::readImuData(F32& ax, F32& ay, F32& az,
     return status;
 }
 
-void SensorManager::simulateImuData(F32& ax, F32& ay, F32& az,
+void IMUManager::simulateImuData(F32& ax, F32& ay, F32& az,
                                      F32& gx, F32& gy, F32& gz,
                                      F32& temp) {
     float t = static_cast<float>(m_simTick) * 0.1f;

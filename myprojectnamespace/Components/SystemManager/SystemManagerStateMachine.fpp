@@ -5,7 +5,7 @@ module Managers {
         initial enter NOMINAL
 
         signal tick           # rate group fires this every second
-        signal sensorFault    # SensorManager reported an I2C failure
+        signal sensorFault    # IMUManager reported an I2C failure
         signal tempFault      # TempManager reported an I2C failure
         signal gpsFault       # NavigationManager reported an I2C failure
         signal magFault       # MagnetometerManager reported an I2C failure
