@@ -6,7 +6,7 @@ add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Led/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Types/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/SystemManager/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/RadioManager/")
-add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/SensorManager/")
+add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/IMUManager/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/NavigationManager/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/MagnetometerManager/")
 

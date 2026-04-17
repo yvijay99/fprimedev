@@ -1,8 +1,4 @@
-// ======================================================================
-// \title  SystemManager.cpp
-// \author yuktivijay
-// \brief  cpp file for SystemManager component implementation class
-// ======================================================================
+// SystemManager.cpp
 
 #include "myprojectnamespace/Components/SystemManager/SystemManager.hpp"
 
@@ -27,15 +23,16 @@ void SystemManager::run_handler(FwIndexType portNum, U32 context) {
     this->dispatchCurrentMessages();
 }
 
-// ---- State machine actions ----
+// state machine actions
 
+// everything is fine, emit telemetry and keep the status led solid on
 void SystemManager::Managers_SystemManagerStateMachine_action_runHealthCheck(
     SmId smId,
     Managers_SystemManagerStateMachine::Signal signal)
 {
     FW_ASSERT(smId == SmId::systemMgrSm);
     m_degradedTicks = 0;
-    this->tlmWrite_SystemState(0);  // 0 = NOMINAL
+    this->tlmWrite_SystemState(0);
     this->tlmWrite_SystemUptime(m_uptimeSeconds);
     this->tlmWrite_CpuUsage(0.0f);
     this->tlmWrite_MemUsage(0.0f);
@@ -47,33 +44,33 @@ void SystemManager::Managers_SystemManagerStateMachine_action_runHealthCheck(
     }
 }
 
+// something is faulting, blink the led and escalate to reboot if it sticks around
 void SystemManager::Managers_SystemManagerStateMachine_action_monitorDegraded(
     SmId smId,
     Managers_SystemManagerStateMachine::Signal signal)
 {
     FW_ASSERT(smId == SmId::systemMgrSm);
     m_degradedTicks++;
-    this->tlmWrite_SystemState(1);  // 1 = DEGRADED
+    this->tlmWrite_SystemState(1);
     this->tlmWrite_SystemUptime(m_uptimeSeconds);
     this->tlmWrite_TotalComponentFaults(m_totalComponentFaults);
     this->tlmWrite_DegradedTicks(m_degradedTicks);
-    // Blink LED at 1Hz in degraded state
     m_ledToggle = !m_ledToggle;
     if (this->isConnected_statusLedSet_OutputPort(0)) {
         this->statusLedSet_out(0, m_ledToggle ? Fw::Logic::HIGH : Fw::Logic::LOW);
     }
-    // Auto-escalate if fault persists too long
     if (m_degradedTicks >= ESCALATION_THRESHOLD) {
         this->systemMgrSm_sendSignal_escalate();
     }
 }
 
+// system is in reboot, just kill the led
 void SystemManager::Managers_SystemManagerStateMachine_action_performReboot(
     SmId smId,
     Managers_SystemManagerStateMachine::Signal signal)
 {
     FW_ASSERT(smId == SmId::systemMgrSm);
-    this->tlmWrite_SystemState(2);  // 2 = REBOOT
+    this->tlmWrite_SystemState(2);
     this->tlmWrite_SystemUptime(m_uptimeSeconds);
     this->tlmWrite_TotalComponentFaults(m_totalComponentFaults);
     if (this->isConnected_statusLedSet_OutputPort(0)) {
@@ -81,8 +78,9 @@ void SystemManager::Managers_SystemManagerStateMachine_action_performReboot(
     }
 }
 
-// ---- Health port handlers ----
+// health port handlers
 
+// if all sensors are good again, tell the state machine we're clear
 void SystemManager::checkAllClear() {
     if (!m_sensorFaultActive && !m_tempFaultActive &&
         !m_gpsFaultActive && !m_magFaultActive) {
@@ -138,7 +136,7 @@ void SystemManager::magHealth_handler(FwIndexType portNum, bool healthy) {
     }
 }
 
-// ---- Command handlers ----
+// command handlers
 
 void SystemManager::REPORT_STATUS_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     this->tlmWrite_CpuUsage(0.0f);

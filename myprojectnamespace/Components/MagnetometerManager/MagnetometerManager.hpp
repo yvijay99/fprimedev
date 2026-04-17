@@ -1,8 +1,4 @@
-// ======================================================================
-// \title  MagnetometerManager.hpp
-// \author yuktivijay
-// \brief  hpp file for MagnetometerManager component implementation class
-// ======================================================================
+// MagnetometerManager.hpp
 
 #ifndef Managers_MagnetometerManager_HPP
 #define Managers_MagnetometerManager_HPP
@@ -22,20 +18,17 @@ class MagnetometerManager final : public MagnetometerManagerComponentBase {
     U32 m_i2cAddress = 0x20;
 
     static constexpr U8 POLL_REG = 0x00;
-    static constexpr U8 CMM_REG = 0x01;
-    static constexpr U8 CCX_REG = 0x04;
-    static constexpr U8 CCY_REG = 0x06;
-    static constexpr U8 CCZ_REG = 0x08;
+    static constexpr U8 POLL_XYZ = 0x70;
     static constexpr U8 MX_REG = 0x24;
-    static constexpr U8 MY_REG = 0x27;
-    static constexpr U8 MZ_REG = 0x2A;
-    static constexpr U8 STATUS_REG = 0x34;
     static constexpr U8 MAG_DATA_SIZE = 9;
     static constexpr F32 RM3100_SENSITIVITY = 75.0f;
 
     U32 m_simTick = 0;
+    U32 m_readCount = 0;
+    bool m_pollIssued = false;
+    static constexpr U32 READ_LOG_INTERVAL = 10;
 
-    // ---- State machine action handlers ----
+    // state machine action handlers
     void Managers_MagnetometerManagerStateMachine_action_doInit(
         SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal) override;
     void Managers_MagnetometerManagerStateMachine_action_doRead(
@@ -45,14 +38,14 @@ class MagnetometerManager final : public MagnetometerManagerComponentBase {
     void Managers_MagnetometerManagerStateMachine_action_doSimRead(
         SmId smId, Managers_MagnetometerManagerStateMachine::Signal signal) override;
 
-    // ---- Command handlers ----
+    // command handlers
     void CALIBRATE_MAG_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
     void ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
     void DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
     void run_handler(FwIndexType portNum, U32 context) override;
 
+    Drv::I2cStatus triggerMeasurement();
     Drv::I2cStatus readMagData(F32& mx, F32& my, F32& mz);
-    Drv::I2cStatus readTemperature(F32& tempC);
     void simulateMagData(F32& mx, F32& my, F32& mz);
 };
 

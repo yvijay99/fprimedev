@@ -1,75 +1,52 @@
 module Components {
-    @ TMP102 temperature sensor component
+
+    # reads tmp102 temperature sensor over i2c
     active component TempManager {
 
-        @ State machine instance
         state machine instance tempSm: TempManagerStateMachine
 
-        @ Read current temperature from TMP102 sensor
+        # one-shot temp read command
         async command READ_TEMP
 
-        @ Enable simulation mode - generates fake temperature data without I2C
+        # switches to sim mode, generates fake temp data
         async command ENABLE_SIM opcode 1
 
-        @ Disable simulation mode - return to reading real I2C hardware
+        # back to real i2c reads
         async command DISABLE_SIM opcode 2
 
-        @ Temperature measurement (deg C)
+        # temperature in degrees c
         telemetry Temperature: F32
 
-        @ Port receiving calls from the rate group
+        # rate group input
         async input port run: Svc.Sched
 
-        @ I2C write-read port for TMP
+        # i2c port for tmp102
         output port busWriteRead: Drv.I2cWriteRead
-
-        @ I2C write port for TMP
         output port busWrite: Drv.I2c
 
-        @ Health status reported to SystemManager each tick
+        # tells system manager if we're healthy or not
         output port healthOut: Managers.ComponentHealth
 
-        @ Event for logging I2C read errors
-        event TempReadError(status: Drv.I2cStatus) severity warning high format "I2C read error with status {}"
+        enum SensorState { INIT, RUNNING, FAULT, SIM }
 
-        @ Simulation mode enabled
-        event SimModeEnabled \
+        # reports state machine transitions
+        event StateChange(newState: SensorState) \
             severity activity high \
-            format "TempManager: simulation mode enabled"
+            format "TempManager: {}"
 
-        @ Simulation mode disabled
-        event SimModeDisabled \
-            severity activity high \
-            format "TempManager: simulation mode disabled"
+        event TempReading(temperature: F32) \
+            severity activity low \
+            format "Temp reading: {f} C"
 
-        ###############################################################################
-        # Standard AC Ports: Required for Channels, Events, Commands, and Parameters  #
-        ###############################################################################
-        @ Port for requesting the current time
+        # standard fprime ports
         time get port timeCaller
-
-        @ Port for sending command registrations
         command reg port cmdRegOut
-
-        @ Port for receiving commands
         command recv port cmdIn
-
-        @ Port for sending command responses
         command resp port cmdResponseOut
-
-        @ Port for sending textual representation of events
         text event port logTextOut
-
-        @ Port for sending events to downlink
         event port logOut
-
-        @ Port for sending telemetry channels to downlink
         telemetry port tlmOut
-
-        @ Port to return the value of a parameter
         param get port prmGetOut
-
-        @Port to set the value of a parameter
         param set port prmSetOut
 
     }

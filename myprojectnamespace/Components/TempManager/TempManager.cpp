@@ -1,11 +1,8 @@
-// ======================================================================
-// \title  TempManager.cpp
-// \author lauraf26846
-// \brief  cpp file for TempManager component implementation class
-// ======================================================================
+// TempManager.cpp
 
 #include <cmath>
 #include "myprojectnamespace/Components/TempManager/TempManager.hpp"
+
 
 namespace Components {
 
@@ -19,8 +16,9 @@ void TempManager::run_handler(FwIndexType portNum, U32 context) {
     this->tempSm_sendSignal_tick();
 }
 
-// ---- State machine actions ----
+// state machine actions
 
+// kick off a read to make sure the tmp102 is actually there on the bus
 void TempManager::Components_TempManagerStateMachine_action_doInit(
     SmId smId, Components_TempManagerStateMachine::Signal signal)
 {
@@ -28,12 +26,18 @@ void TempManager::Components_TempManagerStateMachine_action_doInit(
     F32 temperature = 0.0f;
     Drv::I2cStatus status = this->readRawTemp(temperature);
     if (status == Drv::I2cStatus::I2C_OK) {
+        this->log_ACTIVITY_HI_StateChange(TempManager_SensorState::RUNNING);
         this->tempSm_sendSignal_success();
     } else {
+        this->log_ACTIVITY_HI_StateChange(TempManager_SensorState::FAULT);
+        if (this->isConnected_healthOut_OutputPort(0)) {
+            this->healthOut_out(0, false);
+        }
         this->tempSm_sendSignal_fault();
     }
 }
 
+// grab a fresh temp reading and push to telemetry, fault out if the bus is mad
 void TempManager::Components_TempManagerStateMachine_action_doRead(
     SmId smId, Components_TempManagerStateMachine::Signal signal)
 {
@@ -43,11 +47,11 @@ void TempManager::Components_TempManagerStateMachine_action_doRead(
 
     if (status == Drv::I2cStatus::I2C_OK) {
         this->tlmWrite_Temperature(temperature);
-        if (this->isConnected_healthOut_OutputPort(0)) {
-            this->healthOut_out(0, true);
+        if (++m_readCount % READ_LOG_INTERVAL == 0) {
+            this->log_ACTIVITY_LO_TempReading(temperature);
         }
     } else {
-        this->log_WARNING_HI_TempReadError(status);
+        this->log_ACTIVITY_HI_StateChange(TempManager_SensorState::FAULT);
         if (this->isConnected_healthOut_OutputPort(0)) {
             this->healthOut_out(0, false);
         }
@@ -55,20 +59,28 @@ void TempManager::Components_TempManagerStateMachine_action_doRead(
     }
 }
 
+// retry the read, if it comes back we flip back to running
 void TempManager::Components_TempManagerStateMachine_action_doFaultRecovery(
     SmId smId, Components_TempManagerStateMachine::Signal signal)
 {
     FW_ASSERT(smId == SmId::tempSm);
-    if (this->isConnected_healthOut_OutputPort(0)) {
-        this->healthOut_out(0, false);
-    }
     F32 temperature = 0.0f;
     Drv::I2cStatus status = this->readRawTemp(temperature);
     if (status == Drv::I2cStatus::I2C_OK) {
+        this->tlmWrite_Temperature(temperature);
+        this->log_ACTIVITY_HI_StateChange(TempManager_SensorState::RUNNING);
+        if (this->isConnected_healthOut_OutputPort(0)) {
+            this->healthOut_out(0, true);
+        }
         this->tempSm_sendSignal_success();
+    } else {
+        if (this->isConnected_healthOut_OutputPort(0)) {
+            this->healthOut_out(0, false);
+        }
     }
 }
 
+// fake temp data wobbling around 25c when there's no hardware
 void TempManager::Components_TempManagerStateMachine_action_doSimRead(
     SmId smId, Components_TempManagerStateMachine::Signal signal)
 {
@@ -78,39 +90,33 @@ void TempManager::Components_TempManagerStateMachine_action_doSimRead(
     m_simTick++;
 
     this->tlmWrite_Temperature(temperature);
-    if (this->isConnected_healthOut_OutputPort(0)) {
-        this->healthOut_out(0, true);
-    }
 }
 
-// ---- Command handlers ----
+// command handlers
 
 void TempManager::READ_TEMP_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     F32 temperature = 0.0f;
     Drv::I2cStatus status = this->readRawTemp(temperature);
     if (status == Drv::I2cStatus::I2C_OK) {
         this->tlmWrite_Temperature(temperature);
-    } else {
-        this->log_WARNING_HI_TempReadError(status);
     }
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
 void TempManager::ENABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     m_simTick = 0;
-    this->log_ACTIVITY_HI_SimModeEnabled();
+    this->log_ACTIVITY_HI_StateChange(TempManager_SensorState::SIM);
     this->tempSm_sendSignal_enableSim();
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
 void TempManager::DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
-    this->log_ACTIVITY_HI_SimModeDisabled();
+    this->log_ACTIVITY_HI_StateChange(TempManager_SensorState::INIT);
     this->tempSm_sendSignal_disableSim();
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
-// ---- I2C helper ----
-
+// pull 2 bytes from reg 0x00 on the tmp102, it's a 12-bit signed value, scale by 0.0625 to get celsius
 Drv::I2cStatus TempManager::readRawTemp(F32& temperature) {
     const U8 devAddr = 0x4a;
     const U8 tempReg = 0x00;

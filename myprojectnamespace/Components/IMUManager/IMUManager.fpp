@@ -1,14 +1,14 @@
 module Managers {
 
-    # reads rm3100 magnetometer over i2c, 3-axis magnetic field in microtesla
-    active component MagnetometerManager {
+    # reads icm-20649 imu (accel + gyro) over i2c
+    active component IMUManager {
 
-        state machine instance magSm: MagnetometerManagerStateMachine
+        state machine instance imuSm: IMUManagerStateMachine
 
-        # triggers a mag calibration routine
-        async command CALIBRATE_MAG opcode 0
+        # triggers imu calibration routine
+        async command CALIBRATE_IMU opcode 0
 
-        # switches to sim mode, generates fake mag data
+        # switches to sim mode, generates fake imu data
         async command ENABLE_SIM opcode 1
 
         # back to real i2c reads
@@ -19,20 +19,24 @@ module Managers {
         # reports state machine transitions
         event StateChange(newState: SensorState) \
             severity activity high \
-            format "MagnetometerManager: {}"
+            format "IMUManager: {}"
 
-        event MagCalibrationStarted \
+        event ImuCalibrationStarted \
             severity activity high \
-            format "Magnetometer calibration started"
+            format "IMU calibration started"
 
-        event MagReading(mx: F32, my: F32, mz: F32) \
-            severity activity low \
-            format "Mag reading: X={f} uT, Y={f} uT, Z={f} uT"
+        # accel in m/s^2
+        telemetry AccelX: F32
+        telemetry AccelY: F32
+        telemetry AccelZ: F32
 
-        # mag field xyz in microtesla
-        telemetry MagX: F32
-        telemetry MagY: F32
-        telemetry MagZ: F32
+        # gyro in deg/s
+        telemetry GyroX: F32
+        telemetry GyroY: F32
+        telemetry GyroZ: F32
+
+        # imu die temp in degrees c
+        telemetry ImuTemp: F32
 
         # rate group input
         async input port run: Svc.Sched
@@ -40,7 +44,7 @@ module Managers {
         # tells system manager if we're healthy or not
         output port healthOut: Managers.ComponentHealth
 
-        # i2c ports for rm3100
+        # i2c ports for icm-20649
         output port busWriteRead: Drv.I2cWriteRead
         output port busWrite: Drv.I2c
 

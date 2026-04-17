@@ -1,53 +1,33 @@
 module Managers {
 
-    @ System Manager - monitors component health and manages system state
+    # monitors health of all sensor components, manages system state (nominal/degraded/reboot)
     queued component SystemManager {
 
-        @ State machine instance
         state machine instance systemMgrSm: SystemManagerStateMachine
 
-        @ Rate-group driven periodic tick
-        async input port run: Svc.Sched
+        # rate group tick
+        sync input port run: Svc.Sched
 
-        @ Health report from SensorManager (IMU)
+        # health reports from each sensor component
         async input port sensorHealth: Managers.ComponentHealth
-
-        @ Health report from TempManager (TMP102)
         async input port tempHealth: Managers.ComponentHealth
-
-        @ Health report from NavigationManager (GPS)
         async input port gpsHealth: Managers.ComponentHealth
-
-        @ Health report from MagnetometerManager (RM3100)
         async input port magHealth: Managers.ComponentHealth
 
-        @ GPIO output to drive the status LED
+        # gpio for status led
         output port statusLedSet: Drv.GpioWrite
 
-        @ Trigger an immediate health status report
+        # commands
         async command REPORT_STATUS opcode 0
-
-        @ Manually inject a component fault - transitions NOMINAL/DEGRADED → REBOOT
         async command INJECT_COMPONENT_FAULT opcode 1
-
-        @ Clear a fault and return to NOMINAL
         async command CLEAR_FAULT opcode 2
-
-        @ Manually escalate from DEGRADED to REBOOT
         async command ESCALATE opcode 3
-
-        @ Clear IMU fault flag - leaves DEGRADED if all other faults also clear
         async command CLEAR_SENSOR_FAULT opcode 4
-
-        @ Clear temp sensor fault flag - leaves DEGRADED if all other faults also clear
         async command CLEAR_TEMP_FAULT opcode 5
-
-        @ Clear GPS fault flag - leaves DEGRADED if all other faults also clear
         async command CLEAR_GPS_FAULT opcode 6
-
-        @ Clear magnetometer fault flag - leaves DEGRADED if all other faults also clear
         async command CLEAR_MAG_FAULT opcode 7
 
+        # events
         event HealthCheckComplete \
             severity activity low \
             format "Health check completed"
@@ -70,20 +50,15 @@ module Managers {
             severity activity high \
             format "Reboot complete: returned to NOMINAL"
 
-        @ Current system state: 0 = NOMINAL, 1 = DEGRADED, 2 = REBOOT
+        # telemetry - 0=nominal, 1=degraded, 2=reboot
         telemetry SystemState: U32
-
         telemetry CpuUsage: F32
         telemetry MemUsage: F32
         telemetry SystemUptime: U64
         telemetry TotalComponentFaults: U32
-
-        @ How many ticks the system has been in DEGRADED
         telemetry DegradedTicks: U32
 
-        ###############################################################################
-        # Standard AC Ports: Required for Channels, Events, Commands, and Parameters  #
-        ###############################################################################
+        # standard fprime ports
         time get port timeCaller
         command reg port cmdRegOut
         command recv port cmdIn

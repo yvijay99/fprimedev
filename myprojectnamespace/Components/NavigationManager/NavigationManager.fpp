@@ -1,96 +1,66 @@
 module Managers {
 
-    @ Navigation Manager - reads GPS position and velocity data
+    # reads neo-m9n gps over i2c using ubx binary protocol
     active component NavigationManager {
 
-        @ State machine instance
         state machine instance navSm: NavigationManagerStateMachine
 
-        @ Command to reset the GPS module
+        # resets gps fix state
         async command GPS_RESET opcode 0
 
-        @ Enable simulation mode - returns hardcoded GPS coordinates without I2C
+        # switches to sim mode, returns hardcoded coords
         async command ENABLE_SIM opcode 1
 
-        @ Disable simulation mode - return to real I2C GPS reads
+        # back to real i2c gps reads
         async command DISABLE_SIM opcode 2
 
-        @ GPS fix acquired
+        enum SensorState { INIT, RUNNING, FAULT, SIM }
+
+        # reports state machine transitions
+        event StateChange(newState: SensorState) \
+            severity activity high \
+            format "NavigationManager: {}"
+
+        # gps fix events
         event GpsFixAcquired(
-            numSats: U8 @< Number of satellites in view
+            numSats: U8
         ) severity activity high \
           format "GPS fix acquired with {} satellites"
 
-        @ GPS fix lost
         event GpsFixLost \
             severity warning high \
             format "GPS fix lost"
 
-        @ Simulation mode enabled
-        event SimModeEnabled \
-            severity activity high \
-            format "NavigationManager: simulation mode enabled"
+        event GpsReading(lat: F64, lon: F64, alt: F32, sats: U8) \
+            severity activity low \
+            format "GPS reading: lat={f}, lon={f}, alt={f} m, sats={}"
 
-        @ Simulation mode disabled
-        event SimModeDisabled \
-            severity activity high \
-            format "NavigationManager: simulation mode disabled"
-
-        @ Latitude in degrees
+        # gps telemetry
         telemetry Latitude: F64
-
-        @ Longitude in degrees
         telemetry Longitude: F64
-
-        @ Altitude in meters
         telemetry Altitude: F32
-
-        @ Ground speed in m/s
         telemetry GroundSpeed: F32
-
-        @ Number of satellites in view
         telemetry NumSatellites: U8
 
-        @ Port receiving calls from the rate group
+        # rate group input
         async input port run: Svc.Sched
 
-        @ I2C write-read port for GPS
+        # i2c ports for neo-m9n
         output port busWriteRead: Drv.I2cWriteRead
-
-        @ I2C write port for GPS
         output port busWrite: Drv.I2c
 
-        @ Health status reported to SystemManager each tick
+        # tells system manager if we're healthy or not
         output port healthOut: Managers.ComponentHealth
 
-        ###############################################################################
-        # Standard AC Ports: Required for Channels, Events, Commands, and Parameters  #
-        ###############################################################################
-        @ Port for requesting the current time
+        # standard fprime ports
         time get port timeCaller
-
-        @ Port for sending command registrations
         command reg port cmdRegOut
-
-        @ Port for receiving commands
         command recv port cmdIn
-
-        @ Port for sending command responses
         command resp port cmdResponseOut
-
-        @ Port for sending textual representation of events
         text event port logTextOut
-
-        @ Port for sending events to downlink
         event port logOut
-
-        @ Port for sending telemetry channels to downlink
         telemetry port tlmOut
-
-        @ Port to return the value of a parameter
         param get port prmGetOut
-
-        @ Port to set the value of a parameter
         param set port prmSetOut
     }
 
