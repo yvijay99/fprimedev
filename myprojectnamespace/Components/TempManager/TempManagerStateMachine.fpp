@@ -1,4 +1,4 @@
-module Components {
+module Managers {
 
     state machine TempManagerStateMachine {
 
