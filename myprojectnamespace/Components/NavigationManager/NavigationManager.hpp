@@ -16,8 +16,11 @@ class NavigationManager final : public NavigationManagerComponentBase {
   private:
     bool m_hasFix = false;
     U32 m_readCount = 0;
-    static constexpr U8 MIN_SATELLITES_FOR_FIX = 4;
+    U32 m_missedPackets = 0;  // consecutive ticks with no nav-pvt returned
+    static constexpr U8  MIN_SATELLITES_FOR_FIX = 4;
     static constexpr U32 READ_LOG_INTERVAL = 10;
+    // 1 miss is normal timing jitter - fault after 5 consecutive misses at 1Hz (~5s with no data)
+    static constexpr U32 MAX_MISSED_PACKETS = 5;
 
     // state machine action handlers
     void Managers_NavigationManagerStateMachine_action_doInit(

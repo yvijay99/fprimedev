@@ -18,14 +18,14 @@ SystemManager::SystemManager(const char* const compName)
 SystemManager::~SystemManager() {}
 
 void SystemManager::run_handler(FwIndexType portNum, U32 context) {
-    m_uptimeSeconds++;
-    this->systemMgrSm_sendSignal_tick();
-    this->dispatchCurrentMessages();
+    m_uptimeSeconds++;                    // track how long we've been running
+    this->systemMgrSm_sendSignal_tick();  // drive the state machine (NOMINAL/DEGRADED/REBOOT action)
+    this->dispatchCurrentMessages();      // flush any queued health port messages that came in this tick
 }
 
 // state machine actions
 
-// everything is fine, emit telemetry and keep the status led solid on
+// nominal state, emit telemetry and keep the status led solid on
 void SystemManager::Managers_SystemManagerStateMachine_action_runHealthCheck(
     SmId smId,
     Managers_SystemManagerStateMachine::Signal signal)
@@ -44,7 +44,7 @@ void SystemManager::Managers_SystemManagerStateMachine_action_runHealthCheck(
     }
 }
 
-// something is faulting, blink the led and escalate to reboot if it sticks around
+// called every tick while in DEGRADED - blinks the led and escalates if fault persists too long
 void SystemManager::Managers_SystemManagerStateMachine_action_monitorDegraded(
     SmId smId,
     Managers_SystemManagerStateMachine::Signal signal)
@@ -55,16 +55,21 @@ void SystemManager::Managers_SystemManagerStateMachine_action_monitorDegraded(
     this->tlmWrite_SystemUptime(m_uptimeSeconds);
     this->tlmWrite_TotalComponentFaults(m_totalComponentFaults);
     this->tlmWrite_DegradedTicks(m_degradedTicks);
+
+    // flip the led every tick - since this runs at 1Hz that gives a 0.5Hz blink (on one second, off the next)
     m_ledToggle = !m_ledToggle;
     if (this->isConnected_statusLedSet_OutputPort(0)) {
         this->statusLedSet_out(0, m_ledToggle ? Fw::Logic::HIGH : Fw::Logic::LOW);
     }
+
+    // self-send escalate once we've been degraded long enough - ESCALATION_THRESHOLD is 500 ticks (~500s at 1Hz)
+    // this sends us to REBOOT where we sit until a human clears it from GDS
     if (m_degradedTicks >= ESCALATION_THRESHOLD) {
         this->systemMgrSm_sendSignal_escalate();
     }
 }
 
-// system is in reboot, just kill the led
+// system is in reboot, turn the led off and keep pushing telemetry
 void SystemManager::Managers_SystemManagerStateMachine_action_performReboot(
     SmId smId,
     Managers_SystemManagerStateMachine::Signal signal)
@@ -79,8 +84,11 @@ void SystemManager::Managers_SystemManagerStateMachine_action_performReboot(
 }
 
 // health port handlers
+// each sensor calls healthOut_out(0, false) every tick it's in FAULT state
+// without the per-sensor flag guard, m_totalComponentFaults would increment every second during a fault
+// the guard ensures we only count and signal once when the fault first appears, not on every repeat call
 
-// if all sensors are good again, tell the state machine we're clear
+// only send faultCleared when ALL four sensors are back - one recovering doesn't mean we're ok
 void SystemManager::checkAllClear() {
     if (!m_sensorFaultActive && !m_tempFaultActive &&
         !m_gpsFaultActive && !m_magFaultActive) {
@@ -89,6 +97,8 @@ void SystemManager::checkAllClear() {
 }
 
 void SystemManager::sensorHealth_handler(FwIndexType portNum, bool healthy) {
+    // !m_sensorFaultActive guard: IMUManager calls healthOut(false) every tick it's faulting
+    // without this check we'd increment m_totalComponentFaults every second and spam the state machine
     if (!healthy && !m_sensorFaultActive) {
         m_sensorFaultActive = true;
         m_totalComponentFaults++;
@@ -96,7 +106,7 @@ void SystemManager::sensorHealth_handler(FwIndexType portNum, bool healthy) {
         this->systemMgrSm_sendSignal_sensorFault();
     } else if (healthy && m_sensorFaultActive) {
         m_sensorFaultActive = false;
-        checkAllClear();
+        checkAllClear();  // check if everyone else is also healthy before returning to NOMINAL
     }
 }
 

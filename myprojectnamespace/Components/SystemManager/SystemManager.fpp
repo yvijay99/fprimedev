@@ -8,7 +8,8 @@ module Managers {
         # rate group tick
         sync input port run: Svc.Sched
 
-        # health reports from each sensor component
+        # async so health signals go on SystemManager's queue and return immediately
+        # - avoids blocking the sensor component's thread while SystemManager processes the fault
         async input port sensorHealth: Managers.ComponentHealth
         async input port tempHealth: Managers.ComponentHealth
         async input port gpsHealth: Managers.ComponentHealth

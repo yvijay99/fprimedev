@@ -37,7 +37,7 @@ void MagnetometerManager::Managers_MagnetometerManagerStateMachine_action_doInit
         if (status == Drv::I2cStatus::I2C_OK) {
             break;
         }
-        usleep(200000);  // 200ms between retries
+        usleep(200000);  // 200ms between retries - bus can still be settling at startup with gps also coming up
     }
 
     if (status == Drv::I2cStatus::I2C_OK) {
@@ -126,28 +126,27 @@ void MagnetometerManager::DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
-// poll mode: trigger xyz measurement, wait 25ms for conversion, read 9 bytes
-// retries once on bus contention with gps
-// raw 24-bit signed values divided by sensitivity (75) to get microtesla
+// rm3100 poll mode: write to POLL_REG, wait 25ms for conversion, read 9 bytes (3 per axis, big-endian 24-bit signed)
 Drv::I2cStatus MagnetometerManager::readMagData(F32& mx, F32& my, F32& mz) {
-    // trigger measurement on all 3 axes
+    // 0x70 = measure all 3 axes in poll mode
     U8 pollCmd[2] = {POLL_REG, 0x70};
     Fw::Buffer pollBuffer(pollCmd, sizeof(pollCmd));
     Drv::I2cStatus status = this->busWrite_out(0, this->m_i2cAddress, pollBuffer);
     if (status != Drv::I2cStatus::I2C_OK) {
-        // retry once after 10ms
+        // gps can hold the bus for a bit so retry once after 10ms
         usleep(10000);
         pollCmd[0] = POLL_REG;
         pollCmd[1] = 0x70;
         pollBuffer = Fw::Buffer(pollCmd, sizeof(pollCmd));
         status = this->busWrite_out(0, this->m_i2cAddress, pollBuffer);
         if (status != Drv::I2cStatus::I2C_OK) {
-            return status;
+            return status;  // still failing, let the state machine know
         }
     }
 
-    usleep(25000);
+    usleep(25000);  // rm3100 conversion time at default cycle count 200 - from datasheet table 4
 
+    // set up the read from MX_REG - gives us 9 bytes: mx(3), my(3), mz(3)
     U8 regAddr = MX_REG;
     Fw::Buffer writeBuffer(&regAddr, sizeof(regAddr));
     U8 rawData[MAG_DATA_SIZE] = {};
@@ -155,7 +154,7 @@ Drv::I2cStatus MagnetometerManager::readMagData(F32& mx, F32& my, F32& mz) {
 
     status = this->busWriteRead_out(0, this->m_i2cAddress, writeBuffer, readBuffer);
 
-    // retry read once if bus was busy
+    // retry read once if bus was still busy
     if (status != Drv::I2cStatus::I2C_OK) {
         usleep(10000);
         regAddr = MX_REG;
@@ -166,6 +165,7 @@ Drv::I2cStatus MagnetometerManager::readMagData(F32& mx, F32& my, F32& mz) {
     }
 
     if (status == Drv::I2cStatus::I2C_OK) {
+        // assemble 24-bit big-endian values (3 bytes per axis, MSB first)
         I32 rawMx = (static_cast<I32>(rawData[0]) << 16) |
                     (static_cast<I32>(rawData[1]) << 8) |
                      static_cast<I32>(rawData[2]);
@@ -176,11 +176,12 @@ Drv::I2cStatus MagnetometerManager::readMagData(F32& mx, F32& my, F32& mz) {
                     (static_cast<I32>(rawData[7]) << 8) |
                      static_cast<I32>(rawData[8]);
 
-        // sign extend 24-bit to 32-bit
+        // sign extend from 24-bit to 32-bit so negative values work correctly
         if (rawMx & 0x800000) { rawMx |= 0xFF000000; }
         if (rawMy & 0x800000) { rawMy |= 0xFF000000; }
         if (rawMz & 0x800000) { rawMz |= 0xFF000000; }
 
+        // 75 counts/uT is the RM3100 sensitivity at cycle count 200 (the default) per datasheet table 2
         mx = static_cast<F32>(rawMx) / RM3100_SENSITIVITY;
         my = static_cast<F32>(rawMy) / RM3100_SENSITIVITY;
         mz = static_cast<F32>(rawMz) / RM3100_SENSITIVITY;
@@ -189,11 +190,12 @@ Drv::I2cStatus MagnetometerManager::readMagData(F32& mx, F32& my, F32& mz) {
     return status;
 }
 
+// earth field sim - 20/20/-40 uT base, phase offsets so the axes aren't in sync
 void MagnetometerManager::simulateMagData(F32& mx, F32& my, F32& mz) {
     float t = static_cast<float>(m_simTick) * 0.1f;
-    mx = 20.0f + 5.0f * sinf(t);
-    my = 20.0f + 5.0f * sinf(t + 1.0f);
-    mz = -40.0f + 5.0f * sinf(t + 2.0f);
+    mx = 20.0f  + 5.0f * sinf(t);
+    my = 20.0f  + 5.0f * sinf(t + 1.0f);
+    mz = -40.0f + 5.0f * sinf(t + 2.0f);  // z tends negative in northern hemisphere
 }
 
 }  // namespace Managers

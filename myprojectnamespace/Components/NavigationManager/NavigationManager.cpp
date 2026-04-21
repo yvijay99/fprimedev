@@ -29,7 +29,7 @@ void NavigationManager::run_handler(FwIndexType portNum, U32 context) {
 
 // state machine actions
 
-// poke the gps once to make sure it's actually sitting on the bus
+// probe the gps once to make sure it's actually sitting on the bus
 void NavigationManager::Managers_NavigationManagerStateMachine_action_doInit(
     SmId smId, Managers_NavigationManagerStateMachine::Signal signal)
 {
@@ -73,7 +73,19 @@ void NavigationManager::Managers_NavigationManagerStateMachine_action_doRead(
     }
 
     if (packetFound) {
+        // got data - reset the miss counter and report telemetry
+        m_missedPackets = 0;
         this->reportGpsTelemetry(lat, lon, alt, speed, sats);
+    } else {
+        // no packet this tick - could be timing jitter (our 1Hz poll fired before the GPS finished its cycle)
+        // but if it keeps happening the GPS has stopped producing data
+        if (++m_missedPackets >= MAX_MISSED_PACKETS) {
+            this->log_ACTIVITY_HI_StateChange(NavigationManager_SensorState::FAULT);
+            if (this->isConnected_healthOut_OutputPort(0)) {
+                this->healthOut_out(0, false);
+            }
+            this->navSm_sendSignal_fault();
+        }
     }
 }
 
@@ -88,6 +100,7 @@ void NavigationManager::Managers_NavigationManagerStateMachine_action_doFaultRec
     bool packetFound = false;
     Drv::I2cStatus status = this->readGpsData(lat, lon, alt, speed, sats, packetFound);
     if (status == Drv::I2cStatus::I2C_OK && packetFound) {
+        m_missedPackets = 0;  // back to getting data, reset the counter
         this->reportGpsTelemetry(lat, lon, alt, speed, sats);
         this->log_ACTIVITY_HI_StateChange(NavigationManager_SensorState::RUNNING);
         if (this->isConnected_healthOut_OutputPort(0)) {
@@ -140,6 +153,7 @@ void NavigationManager::reportGpsTelemetry(F64 lat, F64 lon, F32 alt, F32 speed,
     this->tlmWrite_GroundSpeed(speed);
     this->tlmWrite_NumSatellites(numSats);
 
+    // throttle the event log - nav-pvt fires every second and event bandwidth is limited
     if (++m_readCount % READ_LOG_INTERVAL == 0) {
         this->log_ACTIVITY_LO_GpsReading(lat, lon, alt, numSats);
     }
@@ -153,23 +167,24 @@ void NavigationManager::reportGpsTelemetry(F64 lat, F64 lon, F32 alt, F32 speed,
     }
 }
 
-// build a ubx-cfg-valset message, compute the fletcher checksum, and shoot it over i2c
+// ubx frame: 0xb5 0x62 (sync), class 0x06, id 0x8a (cfg-valset), len, payload, then fletcher checksum
 void NavigationManager::sendUbxCfg(const U8* payload, U8 payloadLen) {
     U8 msg[64] = {};
-    msg[0] = 0xB5;
-    msg[1] = 0x62;
-    msg[2] = 0x06;
-    msg[3] = 0x8A;
+    msg[0] = 0xB5;   // ubx sync char 1
+    msg[1] = 0x62;   // ubx sync char 2
+    msg[2] = 0x06;   // class: cfg
+    msg[3] = 0x8A;   // id: valset
     msg[4] = payloadLen;
-    msg[5] = 0x00;
+    msg[5] = 0x00;   // length high byte (always 0 for short configs)
     memcpy(&msg[6], payload, payloadLen);
 
+    // fletcher checksum covers everything from the class byte onward (not the two sync bytes)
     U8 ck_a = 0, ck_b = 0;
     for (U8 i = 2; i < 6 + payloadLen; i++) {
         ck_a += msg[i];
         ck_b += ck_a;
     }
-    msg[6 + payloadLen] = ck_a;
+    msg[6 + payloadLen]     = ck_a;
     msg[6 + payloadLen + 1] = ck_b;
 
     Fw::Buffer writeBuffer(msg, 6 + payloadLen + 2);
@@ -196,10 +211,11 @@ static I32 readI32LE(const U8* buf) {
     );
 }
 
-// poke the gps for a nav-pvt packet, slurp it in 32-byte chunks from 0xff
-// strip the 0xff fill bytes, verify fletcher checksum, pull out lat/lon/alt/speed/sats
+// NEO-M9N only gives data through reg 0xff in 32-byte chunks padded with 0xff fill - strip those and scan for the packet
 Drv::I2cStatus NavigationManager::readGpsData(F64& lat, F64& lon, F32& alt, F32& speed, U8& numSats, bool& packetFound) {
     packetFound = false;
+
+    // send the ubx-nav-pvt poll request so the gps queues up a fresh packet
     {
         U8 poll[] = {0xB5, 0x62, 0x01, 0x07, 0x00, 0x00, 0x08, 0x19};
         Fw::Buffer pollBuf(poll, sizeof(poll));
@@ -210,7 +226,7 @@ Drv::I2cStatus NavigationManager::readGpsData(F64& lat, F64& lon, F32& alt, F32&
     U32 accumLen = 0;
     U32 emptyChunks = 0;
 
-    // read up to 16 chunks of 32 bytes each
+    // read up to 16 chunks of 32 bytes from reg 0xff
     for (U32 attempts = 0; attempts < 16; attempts++) {
         U8 regAddr = GPS_DATA_REG;
         Fw::Buffer writeBuffer(&regAddr, sizeof(regAddr));
@@ -222,6 +238,7 @@ Drv::I2cStatus NavigationManager::readGpsData(F64& lat, F64& lon, F32& alt, F32&
             return status;
         }
 
+        // copy only non-0xff bytes into accumBuf - 0xff is fill, not real data
         bool hasData = false;
         for (U32 i = 0; i < GPS_CHUNK_SIZE && accumLen < GPS_BUFFER_SIZE; i++) {
             if (chunk[i] != 0xFF) {
@@ -230,6 +247,7 @@ Drv::I2cStatus NavigationManager::readGpsData(F64& lat, F64& lon, F32& alt, F32&
             }
         }
 
+        // 3 empty chunks in a row means the gps has nothing more to send
         if (!hasData) {
             emptyChunks++;
             if (emptyChunks >= 3) break;
@@ -238,24 +256,27 @@ Drv::I2cStatus NavigationManager::readGpsData(F64& lat, F64& lon, F32& alt, F32&
         }
     }
 
+    // nothing came back at all - that's ok, just no packet this tick
     if (accumLen == 0) {
         return Drv::I2cStatus::I2C_OK;
     }
 
-    // scan for ubx-nav-pvt: sync 0xb5 0x62, class 0x01, id 0x07
+    // scan the accumulated bytes for ubx-nav-pvt: sync 0xb5 0x62, class 0x01, id 0x07
     for (U32 i = 0; i + 6 < accumLen; i++) {
         if (accumBuf[i] != 0xB5 || accumBuf[i + 1] != 0x62) continue;
         if (accumBuf[i + 2] != 0x01 || accumBuf[i + 3] != 0x07) continue;
 
+        // payload length is little-endian in bytes 4-5 of the ubx header
         U16 payloadLen = static_cast<U16>(accumBuf[i + 4]) |
                          (static_cast<U16>(accumBuf[i + 5]) << 8);
 
+        // sanity check: nav-pvt is always 92 bytes, and we need to have the full packet plus 2 checksum bytes
         if (payloadLen != PVT_PAYLOAD_LEN) continue;
         if (i + 6 + payloadLen + 2 > accumLen) continue;
 
         const U8* payload = &accumBuf[i + 6];
 
-        // verify fletcher checksum
+        // verify fletcher checksum - runs over everything from class byte onward (skips the two sync bytes)
         U8 ck_a = 0, ck_b = 0;
         for (U32 j = 2; j < 6 + payloadLen; j++) {
             ck_a += accumBuf[i + j];
@@ -263,20 +284,22 @@ Drv::I2cStatus NavigationManager::readGpsData(F64& lat, F64& lon, F32& alt, F32&
         }
         if (ck_a != accumBuf[i + 6 + payloadLen] ||
             ck_b != accumBuf[i + 6 + payloadLen + 1]) {
-            continue;
+            continue;  // checksum failed, keep scanning in case there's another packet
         }
 
+        // pull the fields we care about - all are little-endian i32 except numSv which is a plain byte
         numSats = payload[PVT_NUM_SV];
 
-        I32 lonRaw = readI32LE(&payload[PVT_LON]);
-        I32 latRaw = readI32LE(&payload[PVT_LAT]);
+        I32 lonRaw    = readI32LE(&payload[PVT_LON]);
+        I32 latRaw    = readI32LE(&payload[PVT_LAT]);
         I32 heightMSL = readI32LE(&payload[PVT_HEIGHT]);
-        I32 gSpeed = readI32LE(&payload[PVT_GSPEED]);
+        I32 gSpeed    = readI32LE(&payload[PVT_GSPEED]);
 
-        lon = static_cast<F64>(lonRaw) * 1e-7;
-        lat = static_cast<F64>(latRaw) * 1e-7;
-        alt = static_cast<F32>(heightMSL) / 1000.0f;
-        speed = static_cast<F32>(gSpeed) / 1000.0f;
+        // scale to standard units: 1e-7 deg, mm→m, mm/s→m/s
+        lon   = static_cast<F64>(lonRaw)    * 1e-7;
+        lat   = static_cast<F64>(latRaw)    * 1e-7;
+        alt   = static_cast<F32>(heightMSL) / 1000.0f;
+        speed = static_cast<F32>(gSpeed)    / 1000.0f;
         packetFound = true;
 
         break;

@@ -37,7 +37,7 @@ void TempManager::Components_TempManagerStateMachine_action_doInit(
     }
 }
 
-// grab a fresh temp reading and push to telemetry, fault out if the bus is mad
+// grab a fresh temp reading and push to telemetry, transition to FAULT on i2c error
 void TempManager::Components_TempManagerStateMachine_action_doRead(
     SmId smId, Components_TempManagerStateMachine::Signal signal)
 {
@@ -116,13 +116,13 @@ void TempManager::DISABLE_SIM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
-// pull 2 bytes from reg 0x00 on the tmp102, it's a 12-bit signed value, scale by 0.0625 to get celsius
+// tmp102 returns a 12-bit signed value in the upper 12 bits of 2 bytes - shift right 4, sign-extend, scale by 0.0625
 Drv::I2cStatus TempManager::readRawTemp(F32& temperature) {
-    const U8 devAddr = 0x4a;
-    const U8 tempReg = 0x00;
+    const U8 devAddr = 0x4a;  // ADD0 pin is tied to ground on our board, so address is 0x4a not the default 0x48
+    const U8 tempReg = 0x00;  // temperature register
 
     U8 writeBuf[1] = {tempReg};
-    U8 readBuf[2] = {0};
+    U8 readBuf[2]  = {0};
 
     Fw::Buffer writeFwBuf(writeBuf, sizeof(writeBuf));
     Fw::Buffer readFwBuf(readBuf, sizeof(readBuf));
@@ -130,11 +130,18 @@ Drv::I2cStatus TempManager::readRawTemp(F32& temperature) {
     Drv::I2cStatus status = this->busWriteRead_out(0, devAddr, writeFwBuf, readFwBuf);
 
     if (status == Drv::I2cStatus::I2C_OK) {
+        // combine the two bytes big-endian style (MSB first from tmp102)
         I16 raw = (readBuf[0] << 8) | readBuf[1];
+
+        // top 12 bits are the actual value, bottom 4 are flag bits we don't need
         raw >>= 4;
+
+        // if bit 11 is set the value is negative - sign extend to full 16 bits
         if (raw & 0x800) {
             raw |= 0xF000;
         }
+
+        // 0.0625C per count = 1/16 degree, which is the tmp102's resolution in normal 12-bit mode
         temperature = raw * 0.0625f;
     }
 

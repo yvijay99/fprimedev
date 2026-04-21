@@ -60,8 +60,8 @@ class SystemManager final : public SystemManagerComponentBase {
     bool m_magFaultActive = false;
     bool m_ledToggle = false;
 
-    // auto-escalate to reboot after this many ticks in degraded
-    static constexpr U32 ESCALATION_THRESHOLD = 10;
+    // auto-escalate to reboot after this many ticks in degraded (~500 seconds at 1Hz)
+    static constexpr U32 ESCALATION_THRESHOLD = 500;
 };
 
 }  // namespace Managers
