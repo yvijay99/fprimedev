@@ -1,4 +1,4 @@
-module Components {
+module Managers {
 
     # reads tmp102 temperature sensor over i2c
     active component TempManager {

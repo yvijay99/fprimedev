@@ -29,7 +29,7 @@ void NavigationManager::run_handler(FwIndexType portNum, U32 context) {
 
 // state machine actions
 
-// probe the gps once to make sure it's actually sitting on the bus
+// poke the gps once to make sure it's actually sitting on the bus
 void NavigationManager::Managers_NavigationManagerStateMachine_action_doInit(
     SmId smId, Managers_NavigationManagerStateMachine::Signal signal)
 {
@@ -72,20 +72,9 @@ void NavigationManager::Managers_NavigationManagerStateMachine_action_doRead(
         return;
     }
 
+    // no packet is not a fault gps only produces nav-pvt at its configured rate, not every i2c poll
     if (packetFound) {
-        // got data - reset the miss counter and report telemetry
-        m_missedPackets = 0;
         this->reportGpsTelemetry(lat, lon, alt, speed, sats);
-    } else {
-        // no packet this tick - could be timing jitter (our 1Hz poll fired before the GPS finished its cycle)
-        // but if it keeps happening the GPS has stopped producing data
-        if (++m_missedPackets >= MAX_MISSED_PACKETS) {
-            this->log_ACTIVITY_HI_StateChange(NavigationManager_SensorState::FAULT);
-            if (this->isConnected_healthOut_OutputPort(0)) {
-                this->healthOut_out(0, false);
-            }
-            this->navSm_sendSignal_fault();
-        }
     }
 }
 
@@ -100,7 +89,6 @@ void NavigationManager::Managers_NavigationManagerStateMachine_action_doFaultRec
     bool packetFound = false;
     Drv::I2cStatus status = this->readGpsData(lat, lon, alt, speed, sats, packetFound);
     if (status == Drv::I2cStatus::I2C_OK && packetFound) {
-        m_missedPackets = 0;  // back to getting data, reset the counter
         this->reportGpsTelemetry(lat, lon, alt, speed, sats);
         this->log_ACTIVITY_HI_StateChange(NavigationManager_SensorState::RUNNING);
         if (this->isConnected_healthOut_OutputPort(0)) {
@@ -295,7 +283,7 @@ Drv::I2cStatus NavigationManager::readGpsData(F64& lat, F64& lon, F32& alt, F32&
         I32 heightMSL = readI32LE(&payload[PVT_HEIGHT]);
         I32 gSpeed    = readI32LE(&payload[PVT_GSPEED]);
 
-        // scale to standard units: 1e-7 deg, mm→m, mm/s→m/s
+        // scale from ubx units to human units: 1e-7 deg, mm→m, mm/s→m/s
         lon   = static_cast<F64>(lonRaw)    * 1e-7;
         lat   = static_cast<F64>(latRaw)    * 1e-7;
         alt   = static_cast<F32>(heightMSL) / 1000.0f;
