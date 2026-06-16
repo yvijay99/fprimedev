@@ -70,7 +70,7 @@ module fprimecubesat {
   instance systemManager: Managers.SystemManager base id 0x10020000 \
     queue size 50
 
-  instance tempManager: Components.TempManager base id 0x10025000 \
+  instance tempManager: Managers.TempManager base id 0x10025000 \
     queue size 50 \
     stack size Default.STACK_SIZE \
     priority 90

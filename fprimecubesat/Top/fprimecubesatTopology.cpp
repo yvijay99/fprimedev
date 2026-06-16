@@ -137,7 +137,7 @@ void startRateGroups(Fw::TimeInterval interval) {
     // This call will block until the stopRateGroups() call is made.
     // For this Linux demo, that call is made from a signal handler.
     // Set timer to 10Hz (100ms period)
-    timer.startTimer(100); // 100 ms = 10Hz
+    timer.startTimer(interval); // 100 ms = 10Hz
 }
 
 void stopRateGroups() {
