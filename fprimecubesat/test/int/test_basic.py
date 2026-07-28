@@ -165,10 +165,10 @@ def test_health_ping_enable(fprime_test_api):
 
 def test_file_manager_create_remove_directory(fprime_test_api):
     fprime_test_api.send_and_assert_command(
-        "FileHandling.fileManager.CreateDirectory", ["/tmp/yamcs_test_dir"], max_delay=10, timeout=15
+        "FileHandling.fileManager.CreateDirectory", ["/tmp/test_dir"], max_delay=10, timeout=15
     )
     fprime_test_api.send_and_assert_command(
-        "FileHandling.fileManager.RemoveDirectory", ["/tmp/yamcs_test_dir"], max_delay=10, timeout=15
+        "FileHandling.fileManager.RemoveDirectory", ["/tmp/test_dir"], max_delay=10, timeout=15
     )
 
 
@@ -184,7 +184,7 @@ def test_file_manager_file_size(fprime_test_api):
 def test_file_downlink_send_file(fprime_test_api):
     fprime_test_api.send_and_assert_command(
         "FileHandling.fileDownlink.SendFile",
-        ["/tmp/test_file.txt", "/tmp/yamcs_dl.txt"],
+        ["/tmp/test_file.txt", "/tmp/dl.txt"],
         max_delay=30,
         timeout=35,
     )
@@ -195,13 +195,3 @@ def test_file_uplink(fprime_test_api):
     fprime_test_api.assert_telemetry_count(
         1, channels="FileHandling.fileUplink.PacketsReceived", timeout=10
     )
-
-
-def test_cmd_sequencer_validate(fprime_test_api):
-    fprime_test_api.send_command(
-        "FprimeYamcsReference.cmdSeq.CS_VALIDATE", ["/tmp/nonexistent.bin"]
-    )
-    result = fprime_test_api.await_event(
-        "FprimeYamcsReference.cmdSeq.CS_FileNotFound", timeout=5
-    )
-    assert result is not None

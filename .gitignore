@@ -15,3 +15,5 @@ yamcs-data/
 /.vscode/
 .DS_Store
 *.gcov
+__pycache__/
+*.pyc
