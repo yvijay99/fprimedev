@@ -3,6 +3,7 @@ logs/
 cmake-build-*
 build-artifacts/
 build-fprime-*
+yamcs-data/
 *-template
 *.template.cpp
 *.template.hpp
