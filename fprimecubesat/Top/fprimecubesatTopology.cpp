@@ -64,6 +64,12 @@ void configureTopology() {
     if (status2 != Os::File::Status::OP_OK) {
         Fw::Logger::log("[ERROR] Failed to open GPIO pin 17\n");
     }
+    // TODO: pin 27 is a placeholder for led2 - confirm against real wiring and update
+    Os::File::Status status3 =
+        gpioDriver3.open("/dev/gpiochip4", 27, Drv::LinuxGpioDriver::GpioConfiguration::GPIO_OUTPUT);
+    if (status3 != Os::File::Status::OP_OK) {
+        Fw::Logger::log("[ERROR] Failed to open GPIO pin 27\n");
+    }
 
     // I2C driver for IMU (IMUManager) - Raspberry Pi 4 I2C bus 1
     bool i2cImuOk = imuI2cDriver.open("/dev/i2c-1");
@@ -137,7 +143,7 @@ void startRateGroups(Fw::TimeInterval interval) {
     // This call will block until the stopRateGroups() call is made.
     // For this Linux demo, that call is made from a signal handler.
     // Set timer to 10Hz (100ms period)
-    timer.startTimer(interval); // 100 ms = 10Hz
+    timer.startTimer(interval.getSeconds() * 1000 + interval.getUSeconds() / 1000); // 100 ms = 10Hz
 }
 
 void stopRateGroups() {

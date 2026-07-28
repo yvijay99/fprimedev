@@ -27,21 +27,18 @@ module fprimecubesat {
   # ----------------------------------------------------------------------
   instance gpioDriver: Drv.LinuxGpioDriver base id 0x10015000
   instance gpioDriver2: Drv.LinuxGpioDriver base id 0x10017000
+  # led2's pin - placeholder BCM 27, not yet confirmed against real wiring
+  instance gpioDriver3: Drv.LinuxGpioDriver base id 0x10018000
 
-  instance led: ledmanager.Led base id 0x10005000 \
+  instance led: Managers.Led base id 0x10005000 \
     queue size Default.QUEUE_SIZE \
     stack size Default.STACK_SIZE \
     priority 95
 
-  instance led2: ledmanager.Led base id 0x10008000 \
+  instance led2: Managers.Led base id 0x10008000 \
     queue size Default.QUEUE_SIZE \
     stack size Default.STACK_SIZE \
     priority 95
-
-  instance HelloWorld: Components.HelloWorld base id 0x10006000 \
-    queue size Default.QUEUE_SIZE \
-    stack size Default.STACK_SIZE \
-    priority 50
 
   instance rateGroup1: Svc.ActiveRateGroup base id 0x10001000 \
     queue size Default.QUEUE_SIZE \
@@ -81,7 +78,13 @@ module fprimecubesat {
     priority 90
 
   # ----------------------------------------------------------------------
-  # Manager component instances (10Hz rate group)
+  # Manager component instances (originally 10Hz rate group)
+  #
+  # imuManager and navigationManager actually run on rateGroup1 (1Hz), and
+  # magnetometerManager on rateGroup3 (2.5Hz) - see connections RateGroups
+  # in topology.fpp. They were moved off the 10Hz group because blocking
+  # usleep() calls in the mag/gps read handlers were stalling everything
+  # else scheduled on that rate group.
   # ----------------------------------------------------------------------
 
   instance imuManager: Managers.IMUManager base id 0x10022000 \

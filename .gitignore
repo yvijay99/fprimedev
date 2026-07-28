@@ -3,6 +3,8 @@ logs/
 cmake-build-*
 build-artifacts/
 build-fprime-*
+/fprimecubesat-bin
+/fprimecubesatTopologyDictionary.json
 yamcs-data/
 *-template
 *.template.cpp

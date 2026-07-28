@@ -195,3 +195,18 @@ def test_file_uplink(fprime_test_api):
     fprime_test_api.assert_telemetry_count(
         1, channels="FileHandling.fileUplink.PacketsReceived", timeout=10
     )
+
+
+def test_radio_transmit_packet(fprime_test_api):
+    # wrapped as a DAP (9-byte header) inside a RAP (9-byte header + 8-byte trailer),
+    # so a 5-byte payload produces a 31-byte frame - see RadioManager.cpp
+    data = "hello"
+    expected_rap_len = 9 + 8 + 9 + len(data)
+    fprime_test_api.send_and_assert_command(
+        "fprimecubesat.radioManager.TRANSMIT_PACKET", [data], max_delay=5, timeout=15
+    )
+    fprime_test_api.assert_event(
+        "fprimecubesat.radioManager.PacketTransmitted",
+        args=[expected_rap_len],
+        timeout=10,
+    )

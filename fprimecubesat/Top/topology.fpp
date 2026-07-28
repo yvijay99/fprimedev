@@ -27,7 +27,7 @@ module fprimecubesat {
     instance led2
     instance gpioDriver
     instance gpioDriver2
-    instance HelloWorld
+    instance gpioDriver3
     instance chronoTime
     instance rateGroup1
     instance rateGroup2
@@ -80,6 +80,8 @@ module fprimecubesat {
       rateGroup2.RateGroupMemberOut[4] -> led2.run
       # led's gpioSet output is connected to gpioDriver's gpioWrite input
       led.gpioSet -> gpioDriver.gpioWrite
+      # led2's pin isn't confirmed yet - see gpioDriver3 note in instances.fpp
+      led2.gpioSet -> gpioDriver3.gpioWrite
       # gpioDriver2 is driven by SystemManager state machine:
       #   HIGH (LED on)  = NOMINAL
       #   LOW  (LED off) = REBOOT / fault
@@ -140,6 +142,7 @@ module fprimecubesat {
       rateGroup1.RateGroupMemberOut[5] -> systemManager.run
       rateGroup1.RateGroupMemberOut[6] -> radioManager.run
       rateGroup1.RateGroupMemberOut[7] -> tempManager.run
+      # imu/gps run here, not on the 10Hz group - see note in instances.fpp
       rateGroup1.RateGroupMemberOut[8] -> navigationManager.run
       rateGroup1.RateGroupMemberOut[9] -> imuManager.run
 
@@ -154,6 +157,7 @@ module fprimecubesat {
       rateGroup3.RateGroupMemberOut[2] -> DataProducts.dpBufferManager.schedIn
       rateGroup3.RateGroupMemberOut[3] -> DataProducts.dpWriter.schedIn
       rateGroup3.RateGroupMemberOut[4] -> DataProducts.dpMgr.schedIn
+      # mag runs here, not on the 10Hz group - see note in instances.fpp
       rateGroup3.RateGroupMemberOut[5] -> magnetometerManager.run
     }
 
