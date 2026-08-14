@@ -378,7 +378,7 @@ fprime-util check
 
 ### Branching
 
-Work off `devicemanagertest_statemachine` for changes to the `Managers` module. Do not merge to `main` until sensor behavior is validated on real Pi hardware.
+Work off a new branch for changes to the `Managers` module. Do not merge to `main` until sensor behavior is validated on real Pi hardware.
 
 ### Commit Style
 
