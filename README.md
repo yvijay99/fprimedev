@@ -1,6 +1,6 @@
 # CubesatRef — F´ reference system
 
-(README rewritten by Claude, reviewed by Yukti Vijay)
+(README rewritten by Claude, reviewed by Yukti Vijay and Laura Fernandes)
 
 This repo is an F´ (F Prime) reference deployment for a cubesat device-manager stack: temperature, IMU, GPS, and magnetometer sensors, a LoRa radio, and a system-health manager, all running on **Raspberry Pi (Linux ARM)** over `LinuxI2cDriver` / `LinuxSpiDriver` / `LinuxGpioDriver`.
 
@@ -266,6 +266,8 @@ ps aux | grep -iE "fprimecubesat|fprime_gds|fprime-gds" | grep -v grep | awk '{p
 ```
 
 **Pi path** — needs Docker Desktop running first, then see [Docker — cross-compile for Raspberry Pi](#docker--cross-compile-for-raspberry-pi-aarch64) and [Deploy & run on the Pi](#deploy--run-on-the-pi) below.
+
+**NOTE:** If compiling using WSL on Windows, you will also need to use Docker to cross-compile for aarch64-linux on the Pi, either using Docker or another cross-compilation method.
 
 ### Prerequisites
 
